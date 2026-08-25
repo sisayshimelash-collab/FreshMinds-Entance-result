@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="am" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FreshMinds EAES Result Checker | የ 2018 ዓ.ም የዩኒቨርሲቲ መግቢያ ፈተና ውጤት</title>
+  
+  <!-- Primary Meta Tags -->
+  <meta name="title" content="FreshMinds EAES Result Checker | የዩኒቨርሲቲ መግቢያ ፈተና ውጤት">
+  <meta name="description" content="Check your 2018 E.C. Ethiopian University Entrance Exam (ESSLCE) results fast and prepare for your freshman journey with FreshMinds Academy.">
+  <meta name="theme-color" content="#0d0f18">
+
+  <!-- Open Graph / Social Sharing -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="FreshMinds EAES Result Checker 2018 E.C.">
+  <meta property="og:description" content="Check your Ethiopian University Entrance Exam results fast & join FreshMinds for free freshman preparation.">
+
+  <!-- Google Fonts: Inter, Outfit, Noto Sans Ethiopic -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Ethiopic:wght@400;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Background Glow Accents -->
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <div class="app-container">
+    
+    <!-- Navbar / Header -->
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo">FM</div>
+        <div class="brand-text">
+          <h1>FreshMinds</h1>
+          <span>Academy Result Portal</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Language Switcher -->
+        <button id="langToggleBtn" class="lang-toggle" aria-label="Toggle language">
+          <span id="langCurrent">🇪🇹 አማርኛ</span>
+        </button>
+
+        <!-- Telegram Channel Link Button -->
+        <a href="https://t.me/freshminds_academy" target="_blank" rel="noopener noreferrer" class="btn-channel" id="navChannelBtn">
+          <svg class="tg-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .37z"/>
+          </svg>
+          <span data-i18n="join_channel_btn">Join Channel</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- Main Card Section -->
+    <main class="main-content">
+      
+      <!-- Hero Title -->
+      <section class="hero-section">
+        <div class="badge">
+          <span class="pulse-dot"></span>
+          <span data-i18n="badge_text">EAES 2018 E.C. Result Checker</span>
+        </div>
+        <h2 class="hero-title" data-i18n="hero_heading">የ 2018 ዓ.ም የመግቢያ ፈተና ውጤትህን/ሽን ፈትሽ</h2>
+        <p class="hero-subtitle" data-i18n="hero_subheading">የምዝገባ ቁጥርህን/ሽን እና የመጀመሪያ ስምህን/ሽን በማስገባት ፈጣን ውጤት ተመልከት</p>
+      </section>
+
+      <!-- Input Form Card -->
+      <section class="card form-card" id="formSection">
+        <form id="resultForm" class="result-form" autocomplete="off">
+          
+          <div class="form-group">
+            <label for="admissionInput" class="form-label" data-i18n="label_admission">የምዝገባ ቁጥር (Admission No)</label>
+            <div class="input-wrapper">
+              <span class="input-icon">🔢</span>
+              <input 
+                type="text" 
+                id="admissionInput" 
+                name="admission_no"
+                class="form-input" 
+                placeholder="e.g. 347484" 
+                required 
+                inputmode="numeric"
+                maxlength="12"
+              >
+            </div>
+            <span class="input-hint" data-i18n="hint_admission">ቁጥሮችን ብቻ ያስገቡ</span>
+          </div>
+
+          <div class="form-group">
+            <label for="nameInput" class="form-label" data-i18n="label_name">የመጀመሪያ ስም (First Name)</label>
+            <div class="input-wrapper">
+              <span class="input-icon">👤</span>
+              <input 
+                type="text" 
+                id="nameInput" 
+                name="first_name"
+                class="form-input" 
+                placeholder="e.g. Abebe / አበበ" 
+                required 
+                maxlength="40"
+              >
+            </div>
+            <span class="input-hint" data-i18n="hint_name">በእንግሊዝኛ ወይም በአማርኛ ፊደል</span>
+          </div>
+
+          <button type="submit" id="submitBtn" class="btn-primary">
+            <span class="btn-text" data-i18n="btn_check">ውጤቴን ፈልግ (Check Result)</span>
+            <span class="btn-spinner hidden"></span>
+            <span class="btn-arrow">→</span>
+          </button>
+        </form>
+      </section>
+
+      <!-- Loading State -->
+      <div id="loadingCard" class="card loading-card hidden">
+        <div class="spinner-pulse"></div>
+        <h3 data-i18n="loading_title">ውጤትህን/ሽን በማዘጋጀት ላይ ነን...</h3>
+        <p data-i18n="loading_desc">ከ EAES ሰርቨር ጋር እየተገናኘን ነው፣ እባክዎ ጥቂት ሴኮንዶች ይጠብቁ።</p>
+      </div>
+
+      <!-- Result Card (Hidden Initially) -->
+      <section id="resultCard" class="card result-card hidden">
+        <div class="scorecard-header">
+          <div class="scorecard-badge" data-i18n="official_result">Official EAES Result</div>
+          <button id="printBtn" class="btn-print" title="Print Scorecard">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+              <path d="M6 14h12v8H6z"/>
+            </svg>
+            <span data-i18n="btn_print">Print</span>
+          </button>
+        </div>
+
+        <div class="student-profile">
+          <div class="student-avatar" id="studentAvatar">🎓</div>
+          <div class="student-details">
+            <h3 id="resFullName" class="student-name">Student Full Name</h3>
+            <div class="student-tags">
+              <span class="tag tag-adm">🔢 <strong id="resAdmissionNo">--</strong></span>
+              <span class="tag tag-stream" id="resStreamTag">📊 <span id="resStream">--</span></span>
+              <span class="tag tag-school" id="resSchoolTag">🏫 <span id="resSchool">--</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subject Scores Table -->
+        <div class="table-container">
+          <table class="scores-table">
+            <thead>
+              <tr>
+                <th data-i18n="th_subject">የትምህርት አይነት (Subject)</th>
+                <th class="text-right" data-i18n="th_score">ውጤት (Score)</th>
+              </tr>
+            </thead>
+            <tbody id="scoresTableBody">
+              <!-- Dynamically Populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Actions -->
+        <div class="result-actions">
+          <button id="checkAnotherBtn" class="btn-secondary" data-i18n="btn_check_another">
+            🔄 ሌላ ውጤት ፈልግ
+          </button>
+          <a href="https://t.me/freshminds_academy" target="_blank" rel="noopener noreferrer" class="btn-telegram">
+            <svg class="tg-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .37z"/>
+            </svg>
+            <span data-i18n="btn_join_telegram">የ Freshman ትምህርቶችን ተቀላቀል</span>
+          </a>
+        </div>
+      </section>
+
+      <!-- Status Notice Card (Not Released / Not Found / Error) -->
+      <section id="noticeCard" class="card notice-card hidden">
+        <div class="notice-icon" id="noticeIcon">⏳</div>
+        <h3 class="notice-title" id="noticeTitle">የ 2018 ዓ.ም ውጤት ገና አልተለቀቀም!</h3>
+        <p class="notice-desc" id="noticeDesc">ውጤቱ ሲለቀቅ ወዲያውኑ በቴሌግራም ቻናላችን እናሳውቃለን።</p>
+        
+        <div class="notice-actions">
+          <a href="https://t.me/freshminds_academy" target="_blank" rel="noopener noreferrer" class="btn-primary btn-glow" id="noticeTgBtn">
+            <svg class="tg-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .37z"/>
+            </svg>
+            <span data-i18n="btn_join_freshminds">Join @freshminds_academy</span>
+          </a>
+          <button id="noticeRetryBtn" class="btn-secondary" data-i18n="btn_try_again">
+            🔄 ደግመህ ፈትሽ (Try Again)
+          </button>
+        </div>
+      </section>
+
+      <!-- FreshMinds Academy Banner & Mobile App Teaser -->
+      <section class="card promo-card">
+        <div class="promo-content">
+          <div class="promo-badge" data-i18n="promo_badge">Freshman Prep 2018 E.C.</div>
+          <h3 data-i18n="promo_title">ለዩኒቨርሲቲ Freshman ህይወትህ/ሽ ተዘጋጅተሃል/ሻል?</h3>
+          <p data-i18n="promo_desc">ነፃ የ Freshman ኮርሶች፣ የትምህርት ማቴሪያሎች፣ እና የዩኒቨርሲቲ ምደባ መረጃዎችን በ FreshMinds Academy ያግኙ።</p>
+          
+          <div class="promo-features">
+            <div class="feature-item">
+              <span class="feature-icon">📚</span>
+              <span data-i18n="feat_courses">ነፃ የቪዲዮ ኮርሶች</span>
+            </div>
+            <div class="feature-item">
+              <span class="feature-icon">📝</span>
+              <span data-i18n="feat_exams">የፈተና ሞዴሎች</span>
+            </div>
+            <div class="feature-item">
+              <span class="feature-icon">📱</span>
+              <span data-i18n="feat_app">FreshMinds App (በቅርቡ)</span>
+            </div>
+          </div>
+
+          <div class="promo-buttons">
+            <a href="https://t.me/freshminds_academy" target="_blank" rel="noopener noreferrer" class="btn-telegram">
+              <span>👉 Join @freshminds_academy</span>
+            </a>
+            <a href="https://t.me/FreshMindsResultBot" target="_blank" rel="noopener noreferrer" class="btn-outline">
+              <span>🤖 Use Telegram Bot</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>© 2026 FreshMinds Academy. Powered for Ethiopian Students.</p>
+      <div class="footer-links">
+        <a href="https://t.me/freshminds_academy" target="_blank" rel="noopener">Telegram Channel</a>
+        <span>•</span>
+        <a href="https://t.me/FreshMindsResultBot" target="_blank" rel="noopener">Telegram Result Bot</a>
+      </div>
+    </footer>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

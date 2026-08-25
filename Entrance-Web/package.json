@@ -1,0 +1,17 @@
+{
+  "name": "freshminds-result-portal",
+  "version": "1.0.0",
+  "description": "FreshMinds EAES University Entrance Exam Result Portal",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve ."
+  },
+  "keywords": [
+    "eaes",
+    "ethiopia",
+    "entrance-result",
+    "freshminds"
+  ],
+  "author": "FreshMinds Academy",
+  "license": "MIT"
+}

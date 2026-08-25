@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  freshminds-result-bot:
+    build: .
+    container_name: freshminds_result_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
