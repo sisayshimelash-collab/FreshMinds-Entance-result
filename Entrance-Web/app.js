@@ -18,7 +18,7 @@ const translations = {
     label_admission: 'የምዝገባ ቁጥር (Admission No)',
     hint_admission: 'ቁጥሮችን ብቻ ያስገቡ (ለምሳሌ 347484)',
     label_name: 'የመጀመሪያ ስም (First Name)',
-    hint_name: 'በእንግሊዝኛ ወይም በአማርኛ ፊደል',
+    hint_name: 'በእንግሊዝኛ ፊደል ብቻ (English only, e.g. Abebe)',
     btn_check: 'ውጤቴን ፈልግ (Check Result)',
     loading_title: 'ውጤትህን/ሽን በማዘጋጀት ላይ ነን...',
     loading_desc: 'ከ EAES ሰርቨር ጋር እየተገናኘን ነው፣ እባክዎ ጥቂት ሴኮንዶች ይጠብቁ።',
@@ -35,7 +35,7 @@ const translations = {
     notice_error_title: 'አገልግሎቱ ለጊዜው አልመለሰም',
     notice_error_desc: 'የውጤት ሰርቨሩ በከፍተኛ መጨናነቅ ላይ ሊሆን ይችላል። እባክዎ ከጥቂት ደቂቃዎች በኋላ ደግመው ይሞክሩ።',
     btn_join_freshminds: 'Join @freshminds_academy',
-    btn_try_again: '🔄 ደግመህ ፈትሽ (Try Again)',
+    btn_try_again: '🔄 ደግመው ይሞክሩ (Try Again)',
     promo_badge: 'Freshman Prep 2018 E.C.',
     promo_title: 'ለዩኒቨርሲቲ Freshman ህይወትህ/ሽ ተዘጋጅተሃል/ሻል?',
     promo_desc: 'ነፃ የ Freshman ኮርሶች፣ የትምህርት ማቴሪያሎች፣ እና የዩኒቨርሲቲ ምደባ መረጃዎችን በ FreshMinds Academy ያግኙ።',
@@ -52,7 +52,7 @@ const translations = {
     label_admission: 'Admission Number',
     hint_admission: 'Enter numeric digits only (e.g. 347484)',
     label_name: 'First Name',
-    hint_name: 'In English or Amharic letters',
+    hint_name: 'In English letters only (e.g. Abebe)',
     btn_check: 'Check My Result →',
     loading_title: 'Fetching your exam result...',
     loading_desc: 'Communicating with EAES database. Please wait a moment.',
@@ -130,7 +130,7 @@ function setLanguage(lang) {
     nameInput.placeholder = 'e.g. Abebe';
   } else {
     admissionInput.placeholder = 'ምሳሌ 347484';
-    nameInput.placeholder = 'ምሳሌ Abebe / አበበ';
+    nameInput.placeholder = 'ምሳሌ Abebe';
   }
 }
 
