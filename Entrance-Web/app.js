@@ -1,7 +1,10 @@
 /**
  * FreshMinds Result Portal — Client Application Logic
- * Supports bilingual switching (Amharic / English), async result fetching,
- * dynamic scorecard generation, and printing.
+ * 
+ * Supports:
+ * - Bilingual switching (Amharic / English)
+ * - Clean async result fetching via backend proxy
+ * - Dynamic student scorecard rendering and printing
  */
 
 // ── Translations Dictionary ──────────────────────────────────────────────────
@@ -122,7 +125,6 @@ function setLanguage(lang) {
     }
   });
 
-  // Update input placeholders
   if (lang === 'en') {
     admissionInput.placeholder = 'e.g. 347484';
     nameInput.placeholder = 'e.g. Abebe';
@@ -164,34 +166,29 @@ function showView(viewName) {
   if (viewName === 'notice') noticeCard.classList.remove('hidden');
 }
 
-// ── API Result Fetcher ───────────────────────────────────────────────────────
+// ── Web Result Fetcher ───────────────────────────────────────────────────────
 async function fetchResult(admissionNo, firstName) {
   showView('loading');
 
   try {
-    // 1. Try Vercel Serverless Endpoint (/api/check)
-    let response;
-    try {
-      response = await fetch('/api/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admission_no: admissionNo, first_name: firstName }),
-      });
-    } catch (err) {
-      // Local dev fallback if running without serverless proxy
-      response = await fetch(`https://api.eaes.et/api/v1/results/bot?admission_no=${encodeURIComponent(admissionNo)}&first_name=${encodeURIComponent(firstName)}`);
-    }
+    const response = await fetch('/api/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        admission_no: admissionNo,
+        first_name: firstName,
+      }),
+    });
 
-    // Parse response
     let data;
     if (response.ok) {
       data = await response.json();
     } else if (response.status === 423) {
-      data = { status: 'not_released', message: 'Results not released yet.' };
+      data = { status: 'not_released' };
     } else if (response.status === 404) {
       data = { status: 'not_found' };
     } else {
-      data = { status: 'service_error' };
+      data = await response.json().catch(() => ({ status: 'service_error' }));
     }
 
     handleApiResponse(data, admissionNo, firstName);
@@ -271,7 +268,6 @@ function renderScorecard(student, results) {
     resSchoolTag.classList.add('hidden');
   }
 
-  // Build subject table rows
   scoresTableBody.innerHTML = '';
   results.forEach(r => {
     const row = document.createElement('tr');

@@ -1,18 +1,18 @@
 /**
  * Vercel Serverless Function: /api/check
  * 
- * Proxies student result queries to EAES API without CORS restrictions.
- * Zero external dependencies (uses Node.js 18+ built-in fetch & crypto).
+ * High-performance, low-latency EAES Result Proxy:
+ * - 30-second Stampede Shield for 423 Locked
+ * - In-memory LRU cache for 200 OK results
+ * - Native HTTPS client for maximum connection reliability
  */
 
-const crypto = require('crypto');
+const https = require('https');
 
-const EAES_API_BASE = process.env.EAES_API_BASE || 'https://api.eaes.et';
-const BOT_ENDPOINT = `${EAES_API_BASE}/api/v1/results/bot`;
-const WEB_ENDPOINT = `${EAES_API_BASE}/api/v1/results/web`;
-const SESSION_ENDPOINT = `${EAES_API_BASE}/api/v1/session/key`;
+const EAES_HOST = 'api.eaes.et';
+const BOT_PATH = '/api/v1/results/bot';
 
-// ── In-Memory Stampede Cache (Vercel Lambda Container Reuse) ─────────────────
+// ── In-Memory Stampede Cache ─────────────────────────────────────────────────
 let globalNotReleasedUntil = 0;
 let globalNotReleasedMsg = '';
 const resultCache = new Map();
@@ -38,13 +38,44 @@ function sanitizeFirstName(raw) {
   return first;
 }
 
-function computeHmacSha256(secret, message) {
-  return crypto.createHmac('sha256', secret).update(message).digest('hex');
+function fetchFromEaes(pathWithQuery) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: EAES_HOST,
+      port: 443,
+      path: pathWithQuery,
+      method: 'GET',
+      headers: {
+        'User-Agent': 'FreshMindsResultWeb/1.0 (+https://freshmindsacademy.com)',
+        'Accept': 'application/json',
+      },
+      timeout: 15000,
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        resolve({
+          statusCode: res.statusCode,
+          headers: res.headers,
+          body: data,
+        });
+      });
+    });
+
+    req.on('timeout', () => {
+      req.destroy(new Error('Connection timeout to EAES'));
+    });
+
+    req.on('error', err => reject(err));
+    req.end();
+  });
 }
 
 module.exports = async function handler(req, res) {
   // CORS Headers
-  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
   res.setHeader(
@@ -56,7 +87,6 @@ module.exports = async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Extract parameters from Query or POST body
   const body = req.body || {};
   const query = req.query || {};
   const rawAdmission = body.admission_no || query.admission_no || body.admissionNo;
@@ -93,19 +123,14 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // 3. Primary Engine: Call /api/v1/results/bot
-    const botUrl = `${BOT_ENDPOINT}?admission_no=${encodeURIComponent(admissionNo)}&first_name=${encodeURIComponent(firstName)}`;
-    const eaesResp = await fetch(botUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'FreshMindsResultWeb/1.0 (+https://freshmindsacademy.com)',
-        'Accept': 'application/json',
-      },
-    });
+    const queryPath = `${BOT_PATH}?admission_no=${encodeURIComponent(admissionNo)}&first_name=${encodeURIComponent(firstName)}`;
+    const eaesResp = await fetchFromEaes(queryPath);
 
-    // 200 OK: Results are live and found
-    if (eaesResp.status === 200) {
-      const data = await eaesResp.json();
+    // 200 OK: Results Live & Found
+    if (eaesResp.statusCode === 200) {
+      let data = {};
+      try { data = JSON.parse(eaesResp.body); } catch (e) {}
+
       const studentInfo = data.studentInfo || {};
       const rawResults = data.results || [];
 
@@ -125,7 +150,6 @@ module.exports = async function handler(req, res) {
         })),
       };
 
-      // Cache successful result for 10 minutes in container memory
       resultCache.set(cacheKey, parsed);
       if (resultCache.size > 1000) {
         const firstKey = resultCache.keys().next().value;
@@ -135,11 +159,15 @@ module.exports = async function handler(req, res) {
       return res.status(200).json(parsed);
     }
 
-    // 423 Locked: Results not yet released
-    if (eaesResp.status === 423) {
-      const errData = await eaesResp.json().catch(() => ({}));
-      const detail = errData.detail || 'The 2018 result is not released.';
-      globalNotReleasedUntil = Date.now() + 30000; // 30s shield
+    // 423 Locked: Not Released Yet
+    if (eaesResp.statusCode === 423) {
+      let detail = 'The 2018 result is not released.';
+      try {
+        const errData = JSON.parse(eaesResp.body);
+        if (errData.detail) detail = errData.detail;
+      } catch (e) {}
+
+      globalNotReleasedUntil = Date.now() + 30000;
       globalNotReleasedMsg = detail;
 
       return res.status(200).json({
@@ -148,22 +176,21 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // 404: Student not found
-    if (eaesResp.status === 404) {
+    // 404: Not Found
+    if (eaesResp.statusCode === 404) {
       return res.status(200).json({
         status: 'not_found',
         message: `No student record found for admission number ${admissionNo} and name ${firstName}.`,
       });
     }
 
-    // Fallback error
     return res.status(200).json({
       status: 'service_error',
       message: 'The EAES result server returned an unexpected response. Please retry in a few moments.',
     });
 
   } catch (error) {
-    console.error('EAES Proxy Error:', error);
+    console.error('EAES Proxy Error:', error.message || error);
     return res.status(500).json({
       status: 'service_error',
       message: 'Could not connect to EAES result server. Please try again.',
