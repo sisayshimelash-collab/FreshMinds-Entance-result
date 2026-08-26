@@ -59,8 +59,14 @@ async def main():
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
 
-    # Allowed updates must include 'chat_member' for channel tracking
-    allowed_updates = ["message", "chat_member", "callback_query"]
+    # Allowed updates must include all channel tracking events
+    allowed_updates = [
+        "message",
+        "chat_member",
+        "chat_join_request",
+        "callback_query",
+        "my_chat_member",
+    ]
 
     logger.info("Starting long-polling loop...")
     await dp.start_polling(

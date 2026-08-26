@@ -28,7 +28,7 @@ async def handle_leaderboard(message: Message):
         first_name=user.first_name,
     )
 
-    top_users = await db.get_top_leaderboard(limit=10)
+    top_users = await db.get_top_leaderboard(limit=4)
     my_points, _, my_rank = await db.get_user_stats(user.id)
 
     leaderboard_text = msg.format_leaderboard(

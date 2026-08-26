@@ -8,7 +8,7 @@ from config import (
     PRIZE_1ST,
     PRIZE_2ND,
     PRIZE_3RD,
-    PRIZE_4TH_10TH,
+    PRIZE_4TH,
 )
 
 # ── Main Menu Keyboard Labels ────────────────────────────────────────────────
@@ -22,11 +22,11 @@ WELCOME_TEXT = (
     f"🎉 <b>እንኳን ወደ {COMPETITION_TITLE} በደህና መጡ!</b>\n"
     "━━━━━━━━━━━━━━━━━━━━\n"
     f"ጓደኞችዎን ወደ <b>@{TARGET_CHANNEL}</b> በመጋበዝ ከፍተኛ ተሸላሚ ይሁኑ!\n\n"
-    "🎁 <b>የሳምንቱ ሽልማቶች:</b>\n"
+    "🎁 <b>የሳምንቱ ከፍተኛ 4 አሸናፊዎች ሽልማት:</b>\n"
     f"🥇 1ኛ: <b>{PRIZE_1ST}</b>\n"
     f"🥈 2ኛ: <b>{PRIZE_2ND}</b>\n"
     f"🥉 3ኛ: <b>{PRIZE_3RD}</b>\n"
-    f"🎖️ 4ኛ - 10ኛ: <b>{PRIZE_4TH_10TH}</b>\n\n"
+    f"🎖️ 4ኛ: <b>{PRIZE_4TH}</b>\n\n"
     "👇 የራስዎን ልዩ መጋበዣ ሊንክ ለማግኘት ከታች <b>'🔗 የእኔ መጋበዣ ሊንክ'</b> የሚለውን ይጫኑ!"
 )
 
@@ -121,7 +121,7 @@ def format_leaderboard(top_users, my_rank: int, my_points: int) -> str:
     if not top_users:
         lines.append("<i>እስካሁን ምንም ተጋባዥ አልተመዘገበም። የመጀመሪያው ይሁኑ!</i>")
     else:
-        medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+        medals = {1: "🥇", 2: "🥈", 3: "🥉", 4: "🎖️"}
         for u in top_users:
             medal = medals.get(u.rank, f"<b>{u.rank}.</b>")
             display_name = u.first_name
@@ -141,11 +141,11 @@ def format_leaderboard(top_users, my_rank: int, my_points: int) -> str:
 RULES_TEXT = (
     f"🎁 <b>{COMPETITION_TITLE} — ሽልማቶችና ህጎች</b>\n"
     "━━━━━━━━━━━━━━━━━━━━\n"
-    "🏆 <b>የሳምንቱ አሸናፊዎች ሽልማት:</b>\n"
+    "🏆 <b>የሳምንቱ ከፍተኛ 4 አሸናፊዎች ሽልማት:</b>\n"
     f"🥇 <b>1ኛ የወጣ:</b> {PRIZE_1ST}\n"
     f"🥈 <b>2ኛ የወጣ:</b> {PRIZE_2ND}\n"
     f"🥉 <b>3ኛ የወጣ:</b> {PRIZE_3RD}\n"
-    f"🎖️ <b>4ኛ - 10ኛ የወጡ:</b> {PRIZE_4TH_10TH}\n\n"
+    f"🎖️ <b>4ኛ የወጣ:</b> {PRIZE_4TH}\n\n"
     "📜 <b>የውድድሩ ህጎች:</b>\n"
     "1. እያንዳንዱ ተጋባዥ የእርስዎን ልዩ ሊንክ ተጠቅሞ ቻናሉን መቀላቀል አለበት።\n"
     "2. አንድ ሰው ሊቆጠር የሚችለው አንድ ጊዜ ብቻ ነው።\n"

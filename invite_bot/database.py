@@ -142,14 +142,17 @@ class Database:
             await db.commit()
 
     async def get_user_by_invite_link(self, invite_link: str) -> Optional[UserRecord]:
-        """Find the referrer user who owns a given invite link."""
+        """Find the referrer user who owns a given invite link with flexible matching."""
         if not invite_link:
             return None
+        clean_link = invite_link.strip().rstrip('/')
+        link_hash = clean_link.split('/')[-1]
+
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
-                "SELECT user_id, username, first_name, invite_link, created_at FROM users WHERE invite_link = ?",
-                (invite_link.strip(),),
+                "SELECT user_id, username, first_name, invite_link, created_at FROM users WHERE invite_link = ? OR invite_link LIKE ?",
+                (clean_link, f"%{link_hash}%"),
             )
             row = await cursor.fetchone()
             if row:
@@ -161,6 +164,69 @@ class Database:
                     created_at=str(row["created_at"]),
                 )
             return None
+
+    async def add_manual_points(self, referrer_id: int, points: int) -> int:
+        """Add manual bonus referral credits to a user (Admin)."""
+        import time
+        async with aiosqlite.connect(self.db_path) as db:
+            for i in range(points):
+                fake_ref_id = int(time.time() * 1000) + i
+                try:
+                    await db.execute(
+                        "INSERT INTO referrals (referrer_id, referred_user_id, invite_link, is_active) VALUES (?, ?, 'manual_bonus', 1)",
+                        (referrer_id, fake_ref_id),
+                    )
+                except Exception:
+                    pass
+            await db.commit()
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM referrals WHERE referrer_id = ? AND is_active = 1",
+                (referrer_id,),
+            )
+            return (await cursor.fetchone())[0]
+
+    async def remove_manual_points(self, referrer_id: int, points: int) -> int:
+        """Deduct points from a user (Admin)."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                UPDATE referrals 
+                SET is_active = 0, left_at = CURRENT_TIMESTAMP 
+                WHERE id IN (
+                    SELECT id FROM referrals WHERE referrer_id = ? AND is_active = 1 LIMIT ?
+                )
+                """,
+                (referrer_id, points),
+            )
+            await db.commit()
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM referrals WHERE referrer_id = ? AND is_active = 1",
+                (referrer_id,),
+            )
+            return (await cursor.fetchone())[0]
+
+    async def list_all_participants(self, limit: int = 50) -> list[dict]:
+        """List participants with their active invite counts."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT 
+                    u.user_id,
+                    u.first_name,
+                    u.username,
+                    u.invite_link,
+                    COUNT(r.id) as active_points
+                FROM users u
+                LEFT JOIN referrals r ON u.user_id = r.referrer_id AND r.is_active = 1
+                GROUP BY u.user_id
+                ORDER BY active_points DESC, u.created_at ASC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
 
     async def record_referral(
         self, referrer_id: int, referred_user_id: int, invite_link: str

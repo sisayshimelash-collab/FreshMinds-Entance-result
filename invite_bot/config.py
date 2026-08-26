@@ -32,14 +32,14 @@ ADMIN_IDS: set[int] = {
     int(x.strip()) for x in _raw_admins.split(",") if x.strip().isdigit()
 }
 
-# Competition Information
+# Competition Information (Top 4 Winners)
 COMPETITION_TITLE: str = os.getenv(
     "COMPETITION_TITLE", "የ 2018 ዓ.ም የ Freshman ሳምንታዊ የመጋበዝ ውድድር"
 )
-PRIZE_1ST: str = os.getenv("PRIZE_1ST", "3000 ብር + የ Freshman VIP ኮርሶች")
-PRIZE_2ND: str = os.getenv("PRIZE_2ND", "1500 ብር + የ Freshman VIP ኮርሶች")
-PRIZE_3RD: str = os.getenv("PRIZE_3RD", "500 ብር + የ Freshman VIP ኮርሶች")
-PRIZE_4TH_10TH: str = os.getenv("PRIZE_4TH_10TH", "የሞባይል ካርድ + የ Freshman VIP ኮርሶች")
+PRIZE_1ST: str = os.getenv("PRIZE_1ST", "100 ብር + የ Freshman VIP ኮርሶች")
+PRIZE_2ND: str = os.getenv("PRIZE_2ND", "የ Freshman VIP ኮርሶች")
+PRIZE_3RD: str = os.getenv("PRIZE_3RD", "የ 100 ብር ሞባይል ካርድ")
+PRIZE_4TH: str = os.getenv("PRIZE_4TH", "የ 50 ብር ሞባይል ካርድ")
 
 # Database Path
 DB_PATH: Path = Path(__file__).resolve().parent / "invite_competition.db"

@@ -61,18 +61,19 @@ async def handle_get_link(message: Message, bot: Bot):
 
     invite_link = user_record.invite_link
 
-    # 2. If no link exists yet, create one natively via Telegram API
+    # 2. If no link exists yet, create one natively via Telegram API (with join request for 100% reliable tracking)
     if not invite_link:
         try:
-            # Create native Telegram channel invite link with user identifier in name
             link_obj = await bot.create_chat_invite_link(
                 chat_id=TARGET_CHANNEL_ID,
                 name=f"ref_{user.id}",
-                creates_join_request=False,
+                creates_join_request=True,
             )
             invite_link = link_obj.invite_link
             await db.set_user_invite_link(user.id, invite_link)
             logger.info(
+                f"Generated new channel invite link for user {user.id}: {invite_link}"
+            )
                 f"Generated new channel invite link for user {user.id}: {invite_link}"
             )
         except Exception as e:
