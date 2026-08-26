@@ -306,16 +306,15 @@ function renderScorecard(student, results) {
   }
 
   // ── Show Story Card button & Celebration for 50%+ ──────────────────────────
+  downloadStoryBtn.classList.remove('hidden');
+  downloadStoryBtn.onclick = () => {
+    generateStoryCard(student, results, avgVal || 0, totalVal);
+  };
+
   if (avgVal !== null && avgVal >= 50.0) {
     passCelebrationBanner.classList.remove('hidden');
-    downloadStoryBtn.classList.remove('hidden');
-
-    downloadStoryBtn.onclick = () => {
-      generateStoryCard(student, results, avgVal, totalVal);
-    };
   } else {
     passCelebrationBanner.classList.add('hidden');
-    downloadStoryBtn.classList.add('hidden');
   }
 }
 
@@ -386,21 +385,25 @@ function generateStoryCard(student, results, avgVal, totalVal) {
   ctx.fillStyle = '#ffffff';
   ctx.fillText('2018 E.C. ENTRANCE RESULT', 540, 230);
 
-  // 5. Celebration Gold / Emerald Badge
+  // 5. Celebration Gold / Emerald Badge (or Scorecard Badge)
+  const isPassed = avgVal >= 50.0;
   const badgeGrad = ctx.createLinearGradient(190, 280, 890, 370);
-  badgeGrad.addColorStop(0, '#f59e0b');
-  badgeGrad.addColorStop(0.5, '#10b981');
-  badgeGrad.addColorStop(1, '#06b6d4');
+  if (isPassed) {
+    badgeGrad.addColorStop(0, '#f59e0b');
+    badgeGrad.addColorStop(0.5, '#10b981');
+    badgeGrad.addColorStop(1, '#06b6d4');
+  } else {
+    badgeGrad.addColorStop(0, '#6366f1');
+    badgeGrad.addColorStop(0.5, '#8b5cf6');
+    badgeGrad.addColorStop(1, '#06b6d4');
+  }
   ctx.fillStyle = badgeGrad;
   roundRect(ctx, 190, 280, 700, 80, 40);
   ctx.fill();
-  ctx.shadowColor = 'rgba(16, 185, 129, 0.6)';
-  ctx.shadowBlur = 30;
 
-  ctx.shadowBlur = 0;
-  ctx.font = 'bold 36px Outfit, Inter, sans-serif';
+  ctx.font = 'bold 34px Outfit, Inter, sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText('🌟 UNIVERSITY ENTRANCE PASSED 🌟', 540, 334);
+  ctx.fillText(isPassed ? '🌟 UNIVERSITY ENTRANCE PASSED 🌟' : '🎓 OFFICIAL 2018 ESSLCE RESULT 🎓', 540, 334);
 
   // 6. Student Info Glass Card
   ctx.fillStyle = 'rgba(25, 33, 64, 0.75)';

@@ -23,7 +23,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.enums import ParseMode, ChatMemberStatus
 from aiogram.exceptions import TelegramAPIError
 
-from config import FRESHMINDS_CHANNEL, FRESHMINDS_CHANNEL_LINK
+from config import FRESHMINDS_CHANNEL, FRESHMINDS_CHANNEL_LINK, FRESHMINDS_WEB_URL
 from eaes_client import EAESClient, ResultStatus, EAESResult
 from rate_limiter import RateLimiter, TTLCache
 import messages as msg
@@ -99,6 +99,10 @@ def transition_gate_keyboard(join_url: str) -> InlineKeyboardMarkup:
 def after_result_keyboard(join_url: str) -> InlineKeyboardMarkup:
     """Keyboard shown after successfully displaying a result."""
     return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="📸 የውጤት ማስታወሻ ምስል አውርድ (Story Card)",
+            url=FRESHMINDS_WEB_URL,
+        )],
         [InlineKeyboardButton(
             text=msg.BTN_CHECK_ANOTHER,
             callback_data="check_another",
