@@ -96,12 +96,16 @@ def transition_gate_keyboard(join_url: str) -> InlineKeyboardMarkup:
     ])
 
 
-def after_result_keyboard(join_url: str) -> InlineKeyboardMarkup:
+def after_result_keyboard(join_url: str, admission_no: str = "", first_name: str = "") -> InlineKeyboardMarkup:
     """Keyboard shown after successfully displaying a result."""
+    web_link = FRESHMINDS_WEB_URL
+    if admission_no and first_name:
+        web_link = f"{FRESHMINDS_WEB_URL}?adm={admission_no}&name={first_name}"
+
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="📸 የውጤት ማስታወሻ ምስል አውርድ (Story Card)",
-            url=FRESHMINDS_WEB_URL,
+            url=web_link,
         )],
         [InlineKeyboardButton(
             text=msg.BTN_CHECK_ANOTHER,
@@ -214,7 +218,7 @@ async def render_result_response(
     if result.status == ResultStatus.SUCCESS and result.student:
         result_text = msg.format_result_success(result.student, result.results)
         text = result_text + msg.FRESHMINDS_PROMO
-        markup = after_result_keyboard(join_url)
+        markup = after_result_keyboard(join_url, admission_no, first_name)
     elif result.status == ResultStatus.NOT_RELEASED:
         text = msg.RESULT_NOT_RELEASED
         markup = try_again_keyboard(join_url)
@@ -281,7 +285,7 @@ async def handle_chat_join_request(join_req: ChatJoinRequest, bot: Bot, state: F
                     chat_id=user_id,
                     text=f"✅ <b>Channel Joined! Here is your result:</b>\n\n" + result_text + msg.FRESHMINDS_PROMO,
                     parse_mode=ParseMode.HTML,
-                    reply_markup=after_result_keyboard(join_url),
+                    reply_markup=after_result_keyboard(join_url, admission_no, first_name),
                     disable_web_page_preview=True,
                 )
                 await state.clear()

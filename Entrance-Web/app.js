@@ -585,6 +585,27 @@ printBtn.addEventListener('click', () => {
   window.print();
 });
 
+// ── Handle Direct Deep-Links via URL Query Params (e.g. from Telegram) ───────
+(function checkUrlParams() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const pAdm = params.get('adm') || params.get('admission_no');
+    const pName = params.get('name') || params.get('first_name');
+
+    if (pAdm && pName) {
+      const cleanAdm = cleanAdmissionNumber(pAdm);
+      const cleanN = cleanFirstName(pName);
+      if (cleanAdm && cleanN) {
+        admissionInput.value = cleanAdm;
+        nameInput.value = cleanN;
+        fetchResult(cleanAdm, cleanN);
+      }
+    }
+  } catch (e) {
+    console.error('Error parsing URL params:', e);
+  }
+})();
+
 // Initialize default language
 setLanguage('am');
 

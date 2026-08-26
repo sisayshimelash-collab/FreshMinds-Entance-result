@@ -27,7 +27,7 @@ REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "15"))
 # ── FreshMinds Channel & Web ────────────────────────────────────────────────
 FRESHMINDS_CHANNEL: str = os.getenv("FRESHMINDS_CHANNEL", "freshminds_academy")
 FRESHMINDS_CHANNEL_LINK: str = f"https://t.me/{FRESHMINDS_CHANNEL}"
-FRESHMINDS_WEB_URL: str = os.getenv("FRESHMINDS_WEB_URL", "https://freshminds-entrance-result.vercel.app")
+FRESHMINDS_WEB_URL: str = os.getenv("FRESHMINDS_WEB_URL", "https://fresh-minds-entance-result.vercel.app")
 
 # ── Rate Limiting ────────────────────────────────────────────────────────────
 
