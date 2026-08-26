@@ -74,8 +74,6 @@ async def handle_get_link(message: Message, bot: Bot):
             logger.info(
                 f"Generated new channel invite link for user {user.id}: {invite_link}"
             )
-                f"Generated new channel invite link for user {user.id}: {invite_link}"
-            )
         except Exception as e:
             logger.error(
                 f"Failed to create channel invite link for user {user.id}: {e}"
