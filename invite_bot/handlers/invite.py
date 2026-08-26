@@ -13,7 +13,6 @@ from aiogram.types import (
 )
 from aiogram.enums import ParseMode
 from database import db
-from config import TARGET_CHANNEL_ID
 import messages as msg
 
 logger = logging.getLogger(__name__)
@@ -48,44 +47,22 @@ def get_share_keyboard(invite_link: str) -> InlineKeyboardMarkup:
 @router.message(Command("invite"))
 @router.message(Command("newlink"))
 async def handle_get_link(message: Message, bot: Bot):
-    """Generate or retrieve unique direct channel invite link and send promo kit."""
+    """Generate unique bulletproof referral link and send promo kit."""
     user = message.from_user
     if not user:
         return
 
-    # 1. Fetch user from DB
-    user_record = await db.get_or_create_user(
+    # 1. Fetch or create user in DB
+    await db.get_or_create_user(
         user_id=user.id,
         username=user.username,
         first_name=user.first_name,
     )
 
-    force_new = message.text and "/newlink" in message.text
-    invite_link = user_record.invite_link if not force_new else None
-
-    # 2. If no link exists or force new, create fresh join-request link
-    if not invite_link:
-        try:
-            link_obj = await bot.create_chat_invite_link(
-                chat_id=TARGET_CHANNEL_ID,
-                name=f"ref_{user.id}",
-                creates_join_request=True,
-            )
-            invite_link = link_obj.invite_link
-            await db.set_user_invite_link(user.id, invite_link)
-            logger.info(
-                f"Generated new Join-Request channel invite link for user {user.id}: {invite_link}"
-            )
-        except Exception as e:
-            logger.error(
-                f"Failed to create channel invite link for user {user.id}: {e}"
-            )
-            await message.answer(
-                "⚠️ <b>ይቅርታ፣ የመጋበዣ ሊንክ ማመንጨት አልተቻለም!</b>\n"
-                "እባክዎ ቦቱ በቻናሉ ላይ የአድሚን (Admin) ፍቃድ እንዳለው ያረጋግጡ።",
-                parse_mode=ParseMode.HTML,
-            )
-            return
+    # 2. Build 100% reliable Bot Deep-Link
+    bot_info = await bot.get_me()
+    invite_link = f"https://t.me/{bot_info.username}?start=ref_{user.id}"
+    await db.set_user_invite_link(user.id, invite_link)
 
     # 3. Send Ready-to-Forward Promotional Marketing Post
     promo_post = msg.format_promotional_post(invite_link)
