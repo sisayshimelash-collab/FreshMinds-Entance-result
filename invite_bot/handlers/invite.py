@@ -46,6 +46,7 @@ def get_share_keyboard(invite_link: str) -> InlineKeyboardMarkup:
 @router.message(F.text == msg.BTN_GET_LINK)
 @router.message(Command("link"))
 @router.message(Command("invite"))
+@router.message(Command("newlink"))
 async def handle_get_link(message: Message, bot: Bot):
     """Generate or retrieve unique direct channel invite link and send promo kit."""
     user = message.from_user
@@ -59,9 +60,10 @@ async def handle_get_link(message: Message, bot: Bot):
         first_name=user.first_name,
     )
 
-    invite_link = user_record.invite_link
+    force_new = message.text and "/newlink" in message.text
+    invite_link = user_record.invite_link if not force_new else None
 
-    # 2. If no link exists yet, create one natively via Telegram API (with join request for 100% reliable tracking)
+    # 2. If no link exists or force new, create fresh join-request link
     if not invite_link:
         try:
             link_obj = await bot.create_chat_invite_link(
@@ -72,7 +74,7 @@ async def handle_get_link(message: Message, bot: Bot):
             invite_link = link_obj.invite_link
             await db.set_user_invite_link(user.id, invite_link)
             logger.info(
-                f"Generated new channel invite link for user {user.id}: {invite_link}"
+                f"Generated new Join-Request channel invite link for user {user.id}: {invite_link}"
             )
         except Exception as e:
             logger.error(
