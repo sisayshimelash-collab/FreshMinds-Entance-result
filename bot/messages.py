@@ -41,8 +41,8 @@ INVALID_ADMISSION = (
 )
 
 INVALID_NAME = (
-    "⚠️ <b>ትክክለኛ የመጀመሪያ ስም አስገባ/ቢ (ፊደል ብቻ)</b>\n"
-    "<i>Please enter letters only (e.g. Abebe / አበበ).</i>"
+    "⚠️ <b>ትክክለኛ የመጀመሪያ ስም በእንግሊዝኛ ፊደል ያስገቡ</b>\n"
+    "<i>Please enter your name in English letters (e.g. Abebe).</i>"
 )
 
 
@@ -112,8 +112,8 @@ RESULT_NOT_RELEASED = (
 
 STUDENT_NOT_FOUND = (
     f"❌ <b>ተማሪ አልተገኘም | Student Not Found</b>\n\n"
-    "የምዝገባ ቁጥር እና ስምህን/ሽን አረጋግጠህ/ሽ ደግመህ/ሽ ሞክር/ሪ።\n"
-    "<i>Please check admission number & name spelling.</i>"
+    "የምዝገባ ቁጥር እና የስም አጻጻፍ አጣርተው ደግመው ይሞክሩ።\n"
+    "<i>Please verify admission number & name spelling in English.</i>"
 )
 
 SERVICE_ERROR = (

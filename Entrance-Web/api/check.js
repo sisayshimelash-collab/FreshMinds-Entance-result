@@ -2,14 +2,15 @@
  * Vercel Serverless Function: /api/check
  * 
  * High-performance, low-latency EAES Result Proxy:
- * - 30-second Stampede Shield for 423 Locked
- * - In-memory LRU cache for 200 OK results
- * - Native HTTPS client for maximum connection reliability
+ * - Queries active EAES results endpoint
+ * - Parses both SMS & JSON official result payloads
+ * - 30-second Stampede Shield & In-memory LRU cache
  */
 
 const https = require('https');
 
 const EAES_HOST = 'api.eaes.et';
+const SMS_PATH = '/api/v1/results/sms';
 const BOT_PATH = '/api/v1/results/bot';
 
 // ── In-Memory Stampede Cache ─────────────────────────────────────────────────
@@ -46,8 +47,8 @@ function fetchFromEaes(pathWithQuery) {
       path: pathWithQuery,
       method: 'GET',
       headers: {
-        'User-Agent': 'FreshMindsResultWeb/1.0 (+https://freshmindsacademy.com)',
-        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       },
       timeout: 15000,
     };
@@ -71,6 +72,57 @@ function fetchFromEaes(pathWithQuery) {
     req.on('error', err => reject(err));
     req.end();
   });
+}
+
+function parseSmsResult(text, admissionNo, firstName) {
+  const nameMatch = text.match(/Name:\s*([^;]+);/i);
+  const fullName = nameMatch ? nameMatch[1].trim() : firstName;
+
+  const admMatch = text.match(/Admission\s*No:\s*([^;]+);/i);
+  const parsedAdm = admMatch ? admMatch[1].trim() : admissionNo;
+
+  const resMatch = text.match(/Results:\s*([^;]+);/i);
+  const results = [];
+  if (resMatch) {
+    const entries = resMatch[1].split(',');
+    for (let e of entries) {
+      e = e.trim();
+      if (e) {
+        const lastSpace = e.lastIndexOf(' ');
+        if (lastSpace !== -1) {
+          results.push({
+            subject: e.substring(0, lastSpace).trim(),
+            result: e.substring(lastSpace + 1).trim(),
+          });
+        } else {
+          results.push({ subject: e, result: '-' });
+        }
+      }
+    }
+  }
+
+  const totalMatch = text.match(/Total\s*([\d.]+)/i);
+  if (totalMatch) {
+    results.push({ subject: 'Total', result: totalMatch[1].trim().replace(/\.$/, '') });
+  }
+
+  const avgMatch = text.match(/Average\s*([\d.]+)/i);
+  if (avgMatch) {
+    results.push({ subject: 'Average', result: avgMatch[1].trim().replace(/\.$/, '') });
+  }
+
+  return {
+    status: 'success',
+    student: {
+      full_name: fullName,
+      admission_no: parsedAdm,
+      school: null,
+      stream: null,
+      sex: null,
+      age: null,
+    },
+    results: results,
+  };
 }
 
 module.exports = async function handler(req, res) {
@@ -123,32 +175,41 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const queryPath = `${BOT_PATH}?admission_no=${encodeURIComponent(admissionNo)}&first_name=${encodeURIComponent(firstName)}`;
+    // 3. Query the active, high-speed EAES SMS endpoint
+    const queryPath = `${SMS_PATH}?admission_no=${encodeURIComponent(admissionNo)}&first_name=${encodeURIComponent(firstName)}`;
     const eaesResp = await fetchFromEaes(queryPath);
 
     // 200 OK: Results Live & Found
     if (eaesResp.statusCode === 200) {
-      let data = {};
-      try { data = JSON.parse(eaesResp.body); } catch (e) {}
+      let parsed;
+      const textBody = eaesResp.body || '';
 
-      const studentInfo = data.studentInfo || {};
-      const rawResults = data.results || [];
-
-      const parsed = {
-        status: 'success',
-        student: {
-          full_name: studentInfo.FullName || `${firstName}`,
-          admission_no: studentInfo.Admission_No || admissionNo,
-          school: studentInfo.School || null,
-          stream: studentInfo.Stream || null,
-          sex: studentInfo.Sex || null,
-          age: studentInfo.Age || null,
-        },
-        results: rawResults.map(r => ({
-          subject: r.Subject || 'Subject',
-          result: r.Result || '-',
-        })),
-      };
+      if (textBody.includes('{SMS:TEXT}') || textBody.includes('Name:')) {
+        parsed = parseSmsResult(textBody, admissionNo, firstName);
+      } else {
+        try {
+          const data = JSON.parse(textBody);
+          const studentInfo = data.studentInfo || {};
+          const rawResults = data.results || [];
+          parsed = {
+            status: 'success',
+            student: {
+              full_name: studentInfo.FullName || `${firstName}`,
+              admission_no: studentInfo.Admission_No || admissionNo,
+              school: studentInfo.School || null,
+              stream: studentInfo.Stream || null,
+              sex: studentInfo.Sex || null,
+              age: studentInfo.Age || null,
+            },
+            results: rawResults.map(r => ({
+              subject: r.Subject || 'Subject',
+              result: r.Result || '-',
+            })),
+          };
+        } catch (e) {
+          parsed = parseSmsResult(textBody, admissionNo, firstName);
+        }
+      }
 
       resultCache.set(cacheKey, parsed);
       if (resultCache.size > 1000) {
@@ -157,6 +218,14 @@ module.exports = async function handler(req, res) {
       }
 
       return res.status(200).json(parsed);
+    }
+
+    // 404: Not Found
+    if (eaesResp.statusCode === 404) {
+      return res.status(200).json({
+        status: 'not_found',
+        message: `No student record found for admission number ${admissionNo} and name ${firstName}.`,
+      });
     }
 
     // 423 Locked: Not Released Yet
@@ -173,14 +242,6 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({
         status: 'not_released',
         message: detail,
-      });
-    }
-
-    // 404: Not Found
-    if (eaesResp.statusCode === 404) {
-      return res.status(200).json({
-        status: 'not_found',
-        message: `No student record found for admission number ${admissionNo} and name ${firstName}.`,
       });
     }
 

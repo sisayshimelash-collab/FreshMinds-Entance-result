@@ -145,13 +145,15 @@ class EAESClient:
         max_retries: int = 2,
     ) -> EAESResult:
         """Execute request with concurrency limiting and exponential backoff retry."""
-        last_error = ""
+        import re
+        from config import EAES_SMS_ENDPOINT
 
         for attempt in range(max_retries + 1):
             try:
                 async with self._semaphore:
+                    # 1. Primary: Query the active, high-speed SMS result endpoint
                     response = await self._client.get(
-                        EAES_BOT_ENDPOINT,
+                        EAES_SMS_ENDPOINT,
                         params={
                             "admission_no": admission_no,
                             "first_name": first_name,
@@ -160,19 +162,18 @@ class EAESClient:
 
                 # 200 — Result successfully found
                 if response.status_code == 200:
-                    parsed = self._parse_success(response.json())
+                    text_body = response.text
+                    if "{SMS:TEXT}" in text_body or "Name:" in text_body:
+                        parsed = self._parse_sms_success(text_body, admission_no, first_name)
+                    else:
+                        try:
+                            parsed = self._parse_success(response.json())
+                        except Exception:
+                            parsed = self._parse_sms_success(text_body, admission_no, first_name)
+
                     if parsed.status == ResultStatus.SUCCESS:
                         self._result_cache.set(cache_key, parsed)
                     return parsed
-
-                # 423 — Results Not Released (Activate Stampede Shield)
-                if response.status_code == 423:
-                    detail = self._extract_detail(response)
-                    msg = detail or "Results have not been released yet."
-                    # Cache globally for 30s so thousands of concurrent requests don't hit EAES
-                    self._global_not_released_until = time.monotonic() + self._not_released_cache_ttl
-                    self._global_not_released_msg = msg
-                    return EAESResult(status=ResultStatus.NOT_RELEASED, message=msg)
 
                 # 404 — Student Not Found
                 if response.status_code == 404:
@@ -182,14 +183,22 @@ class EAESClient:
                         message=detail or "Student not found with the provided details.",
                     )
 
-                # 422 — Validation Error (e.g. invalid query format)
+                # 423 — Results Not Released (Activate Stampede Shield)
+                if response.status_code == 423:
+                    detail = self._extract_detail(response)
+                    msg = detail or "Results have not been released yet."
+                    self._global_not_released_until = time.monotonic() + self._not_released_cache_ttl
+                    self._global_not_released_msg = msg
+                    return EAESResult(status=ResultStatus.NOT_RELEASED, message=msg)
+
+                # 422 — Validation Error
                 if response.status_code == 422:
                     return EAESResult(
                         status=ResultStatus.VALIDATION_ERROR,
                         message="Invalid admission number or name format.",
                     )
 
-                # Transient server error (502, 503, 504) -> retry if attempts remain
+                # Transient server error (500, 502, 503, 504) -> retry if attempts remain
                 if response.status_code in (500, 502, 503, 504) and attempt < max_retries:
                     await asyncio.sleep(0.5 * (2 ** attempt))
                     continue
@@ -200,7 +209,6 @@ class EAESClient:
                 )
 
             except (httpx.TimeoutException, httpx.ConnectError) as e:
-                last_error = type(e).__name__
                 if attempt < max_retries:
                     await asyncio.sleep(0.5 * (2 ** attempt))
                     continue
@@ -214,8 +222,56 @@ class EAESClient:
 
         return EAESResult(
             status=ResultStatus.SERVICE_ERROR,
-            message="The result service is temporarily slow or unavailable. Please try again in a moment.",
+            message="The result service is temporarily busy. Please try again in a moment.",
         )
+
+    def _parse_sms_success(self, text: str, admission_no: str, first_name: str) -> EAESResult:
+        """Parse the active EAES SMS result format."""
+        import re
+        try:
+            name_match = re.search(r'Name:\s*([^;]+);', text)
+            full_name = name_match.group(1).strip() if name_match else first_name
+
+            adm_match = re.search(r'Admission\s*No:\s*([^;]+);', text)
+            parsed_adm = adm_match.group(1).strip() if adm_match else admission_no
+
+            res_match = re.search(r'Results:\s*([^;]+);', text)
+            results = []
+            if res_match:
+                subject_entries = res_match.group(1).split(',')
+                for entry in subject_entries:
+                    entry = entry.strip()
+                    if entry:
+                        parts = entry.rsplit(' ', 1)
+                        if len(parts) == 2:
+                            results.append(SubjectResult(subject=parts[0].strip(), result=parts[1].strip()))
+                        else:
+                            results.append(SubjectResult(subject=entry, result="-"))
+
+            total_match = re.search(r'Total\s*([\d.]+)', text)
+            if total_match:
+                results.append(SubjectResult(subject="Total", result=total_match.group(1).strip().rstrip('.')))
+
+            avg_match = re.search(r'Average\s*([\d.]+)', text)
+            if avg_match:
+                results.append(SubjectResult(subject="Average", result=avg_match.group(1).strip().rstrip('.')))
+
+            student = StudentInfo(
+                full_name=full_name,
+                admission_no=parsed_adm,
+            )
+
+            return EAESResult(
+                status=ResultStatus.SUCCESS,
+                student=student,
+                results=results,
+            )
+        except Exception as e:
+            logger.error(f"Failed to parse SMS result text: {e}")
+            return EAESResult(
+                status=ResultStatus.SERVICE_ERROR,
+                message="Failed to parse the result record.",
+            )
 
     def _parse_success(self, data: dict) -> EAESResult:
         """Parse a successful result response safely with null guards."""

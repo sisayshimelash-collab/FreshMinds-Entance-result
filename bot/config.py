@@ -20,6 +20,7 @@ BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
 # ── EAES API ─────────────────────────────────────────────────────────────────
 
 EAES_API_BASE: str = os.getenv("EAES_API_BASE", "https://api.eaes.et")
+EAES_SMS_ENDPOINT: str = f"{EAES_API_BASE}/api/v1/results/sms"
 EAES_BOT_ENDPOINT: str = f"{EAES_API_BASE}/api/v1/results/bot"
 REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "15"))
 
