@@ -98,6 +98,17 @@ def format_result_success(student, results) -> str:
         lines.append(f"📖 {r.subject}: <b>{r.result}</b>")
 
     lines.append("━━━━━━━━━━━━━━━━━━━━")
+
+    # Celebration for 50%+
+    for r in results:
+        if r.subject.lower() == "average":
+            try:
+                if float(r.result) >= 50.0:
+                    lines.append("\n🎉 <b>እንኳን ደስ አለዎት! ፈተናውን አልፈዋል (50%+)!</b>")
+                    lines.append("<i>🌟 Congratulations! You have qualified for University!</i>")
+            except Exception:
+                pass
+
     return "\n".join(lines)
 
 
