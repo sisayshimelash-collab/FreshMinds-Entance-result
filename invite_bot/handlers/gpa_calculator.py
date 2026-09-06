@@ -12,6 +12,7 @@ from aiogram.types import (
     InlineKeyboardButton,
 )
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramBadRequest
 import messages as msg
 
 logger = logging.getLogger(__name__)
@@ -184,9 +185,13 @@ async def handle_gpa_set_ch(callback: CallbackQuery):
         courses[course_idx]["grade"] = "A"
 
     await callback.answer(f"✅ Credit Hour: {ch} CH ተመርጧል")
-    await callback.message.edit_reply_markup(
-        reply_markup=build_course_editor_keyboard(user_id, course_idx)
-    )
+    try:
+        await callback.message.edit_reply_markup(
+            reply_markup=build_course_editor_keyboard(user_id, course_idx)
+        )
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e).lower():
+            raise
 
 
 @router.callback_query(F.data.startswith("gpa_setgrade_"))
