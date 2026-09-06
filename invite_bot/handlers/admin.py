@@ -1,8 +1,5 @@
-"""
-FreshMinds Invite Competition Bot — Comprehensive Admin Control Center
-"""
-
 import asyncio
+import html
 import logging
 from aiogram import Router, Bot, F
 from aiogram.filters import Command
@@ -13,11 +10,33 @@ from aiogram.types import (
     InlineKeyboardButton,
 )
 from aiogram.enums import ParseMode
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
 from database import db
 from config import ADMIN_IDS
 
 logger = logging.getLogger(__name__)
 router = Router()
+
+
+class AdminUniState(StatesGroup):
+    waiting_for_name = State()
+    waiting_for_about = State()
+
+
+class AdminUniEditState(StatesGroup):
+    waiting_for_new_about = State()
+
+
+class AdminCourseState(StatesGroup):
+    waiting_for_name = State()
+
+
+class AdminMaterialState(StatesGroup):
+    waiting_for_course = State()
+    waiting_for_category = State()
+    waiting_for_title = State()
+    waiting_for_file = State()
 
 
 def is_admin(user_id: int) -> bool:
@@ -33,6 +52,14 @@ def get_admin_menu_markup() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
+                    text="🏛️ Manage Universities", callback_data="admin_unis_menu"
+                ),
+                InlineKeyboardButton(
+                    text="📚 Courses & Materials", callback_data="admin_courses_menu"
+                ),
+            ],
+            [
+                InlineKeyboardButton(
                     text="📊 Campaign Stats", callback_data="admin_stats"
                 ),
                 InlineKeyboardButton(
@@ -42,6 +69,9 @@ def get_admin_menu_markup() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     text="👥 List Participants", callback_data="admin_users"
+                ),
+                InlineKeyboardButton(
+                    text="📢 Broadcast", callback_data="admin_hint_bc"
                 ),
             ],
             [
@@ -59,12 +89,6 @@ def get_admin_menu_markup() -> InlineKeyboardMarkup:
                     text="🔍 Audit: /audit <id>",
                     callback_data="admin_hint_audit",
                 ),
-                InlineKeyboardButton(
-                    text="📢 Broadcast: /broadcast",
-                    callback_data="admin_hint_bc",
-                ),
-            ],
-            [
                 InlineKeyboardButton(
                     text="🔄 Reset Week: /reset_week",
                     callback_data="admin_hint_reset",
@@ -144,9 +168,13 @@ async def cb_admin_top(callback: CallbackQuery):
     ]
     medals = {1: "🥇", 2: "🥈", 3: "🥉", 4: "🎖️"}
     for u in top_users:
-        name = u.first_name + (f" (@{u.username})" if u.username else "")
+        display_name = html.escape(u.first_name)
+        if u.username:
+            user_link = f'<b>{display_name}</b> (<a href="https://t.me/{u.username}">@{u.username}</a>)'
+        else:
+            user_link = f'<b><a href="tg://user?id={u.user_id}">{display_name}</a></b>'
         lines.append(
-            f"{medals.get(u.rank, '#')} <b>{name}</b> ➜ <b>{u.points}</b> pts (ID: <code>{u.user_id}</code>)"
+            f"{medals.get(u.rank, '#')} {user_link} ➜ <b>{u.points}</b> pts (ID: <code>{u.user_id}</code>)"
         )
     if not top_users:
         lines.append("<i>No referrals yet.</i>")
@@ -170,9 +198,13 @@ async def cb_admin_users(callback: CallbackQuery):
         "━━━━━━━━━━━━━━━━━━━━",
     ]
     for idx, u in enumerate(users, start=1):
-        uname = f"@{u['username']}" if u["username"] else "No @username"
+        display_name = html.escape(u['first_name'])
+        if u['username']:
+            uname = f'<a href="https://t.me/{u["username"]}">@{u["username"]}</a>'
+        else:
+            uname = f'<a href="tg://user?id={u["user_id"]}">No @username</a>'
         lines.append(
-            f"{idx}. <b>{u['first_name']}</b> ({uname}) | ID: <code>{u['user_id']}</code> | <b>{u['active_points']}</b> pts"
+            f"{idx}. <b>{display_name}</b> ({uname}) | ID: <code>{u['user_id']}</code> | <b>{u['active_points']}</b> pts"
         )
     lines.append("━━━━━━━━━━━━━━━━━━━━")
     await callback.message.answer(
@@ -357,31 +389,617 @@ async def cmd_broadcast(message: Message, bot: Bot):
     )
 
 
+@router.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext):
+    """Cancel any active admin FSM state: /cancel"""
+    user = message.from_user
+    if not user or not is_admin(user.id):
+        return
+    current_state = await state.get_state()
+    if current_state is None:
+        await message.answer(
+            "ℹ️ <b>ምንም ንቁ ሂደት የለም።</b> (/cancel)",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+    await state.clear()
+    await message.answer(
+        "✅ <b>ሂደቱ ተሰርዟል (Cancelled).</b>\n"
+        "ወደ <code>/admin</code> ይመለሱ።",
+        parse_mode=ParseMode.HTML,
+    )
+
+
 @router.message(Command("reset_week"))
 async def cmd_reset_week(message: Message):
-    """Archive Top 4 winners and reset points: /reset_week <Cycle Name>"""
+    """Archive top winners and reset competition: /reset_week <cycle_name>"""
     user = message.from_user
     if not user or not is_admin(user.id):
         return
 
-    cycle_name = message.text.partition(" ")[2].strip() or "Week 1"
-    top_winners = await db.reset_weekly_competition(cycle_name)
+    cycle_name = message.text.partition(" ")[2].strip()
+    if not cycle_name:
+        await message.answer(
+            "⚠️ <b>Usage:</b> <code>/reset_week &lt;Cycle Name&gt;</code>\n"
+            "Example: <code>/reset_week Week 1</code>",
+            parse_mode=ParseMode.HTML,
+        )
+        return
 
-    lines = [
-        f"🎉 <b>የሳምንቱ ውድድር ተጠናቀቀ! ({cycle_name})</b>",
-        "🏆 <b>የሳምንቱ ከፍተኛ 4 አሸናፊዎች (Archived Winners):</b>",
-        "━━━━━━━━━━━━━━━━━━━━",
-    ]
-
+    # Show confirmation before the destructive reset
+    top_users = await db.get_top_leaderboard(limit=4)
     medals = {1: "🥇", 2: "🥈", 3: "🥉", 4: "🎖️"}
-    for w in top_winners:
-        name = w.first_name + (f" (@{w.username})" if w.username else "")
-        medal = medals.get(w.rank, f"#{w.rank}")
-        lines.append(
-            f"{medal} <b>{name}</b> ➜ <b>{w.points}</b> ተጋባዥ (ID: <code>{w.user_id}</code>)"
+    preview_lines = [f"🔄 <b>Reset Confirmation: '{html.escape(cycle_name)}'</b>"]
+    preview_lines.append("━━━━━━━━━━━━━━━━━━━━")
+    preview_lines.append("<b>Current Top 4 (will be archived):</b>")
+    if top_users:
+        for u in top_users:
+            preview_lines.append(
+                f"{medals.get(u.rank, '#')} <b>{html.escape(u.first_name)}</b> "
+                f"(ID: <code>{u.user_id}</code>) ➜ <b>{u.points}</b> pts"
+            )
+    else:
+        preview_lines.append("<i>No referrals yet.</i>")
+    preview_lines.append("━━━━━━━━━━━━━━━━━━━━")
+    preview_lines.append(
+        "⚠️ <b>ማስጠንቀቂያ:</b> ይህ ድርጊት ሁሉንም ነጥቦች ያጠፋል እና ወደ ኋላ መመለስ አይቻልም!"
+    )
+
+    import urllib.parse
+    safe_cycle = urllib.parse.quote(cycle_name)
+    confirm_markup = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✅ አዎ፣ አሁን Reset አድርግ!",
+                    callback_data=f"admin_reset_confirm_{safe_cycle}",
+                ),
+                InlineKeyboardButton(
+                    text="❌ ሰርዝ (Cancel)",
+                    callback_data="admin_reset_abort",
+                ),
+            ]
+        ]
+    )
+    await message.answer(
+        "\n".join(preview_lines),
+        parse_mode=ParseMode.HTML,
+        reply_markup=confirm_markup,
+    )
+
+
+@router.callback_query(F.data.startswith("admin_reset_confirm_"))
+async def cb_admin_reset_confirm(callback: CallbackQuery):
+    """Execute the weekly competition reset after admin confirms."""
+    if not is_admin(callback.from_user.id):
+        return
+    import urllib.parse
+    safe_cycle = callback.data.partition("admin_reset_confirm_")[2]
+    cycle_name = urllib.parse.unquote(safe_cycle)
+
+    await callback.answer("⏳ Reset በሂደት ላይ...", show_alert=False)
+
+    top_winners = await db.reset_weekly_competition(cycle_name)
+    medals = {1: "🥇", 2: "🥈", 3: "🥉", 4: "🎖️"}
+    lines = [
+        f"🏆 <b>'{html.escape(cycle_name)}' ተጠናቋል — ውጤቶች ተቀምጠዋል!</b>",
+        "━━━━━━━━━━━━━━━━━━━━",
+        "<b>Archived Winners:</b>",
+    ]
+    if top_winners:
+        for w in top_winners:
+            lines.append(
+                f"{medals.get(w.rank, '#')} <b>{html.escape(w.first_name)}</b> "
+                f"(ID: <code>{w.user_id}</code>) ➜ <b>{w.points}</b> pts"
+            )
+    else:
+        lines.append("<i>No winners this cycle.</i>")
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append("✅ ሁሉም ነጥቦች ተሰርዘዋል — አዲስ ሳምንት ጀምሯል!")
+
+    try:
+        await callback.message.edit_text(
+            "\n".join(lines), parse_mode=ParseMode.HTML
+        )
+    except Exception:
+        await callback.message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
+
+
+@router.callback_query(F.data == "admin_reset_abort")
+async def cb_admin_reset_abort(callback: CallbackQuery):
+    """Abort the reset operation."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer("❌ Reset ተሰርዟል።", show_alert=True)
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+
+
+
+# ── Universities Management CMS ──────────────────────────────────────────────
+
+
+@router.callback_query(F.data == "admin_unis_menu")
+async def cb_admin_unis_menu(callback: CallbackQuery):
+    """University management menu."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    universities = await db.get_all_universities()
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="➕ Add New University", callback_data="admin_add_uni")],
+            [InlineKeyboardButton(text="✏️ Edit University", callback_data="admin_edit_uni_list")],
+            [InlineKeyboardButton(text="🗑️ Delete a University", callback_data="admin_del_uni_list")],
+            [InlineKeyboardButton(text="🔙 Back to Admin Menu", callback_data="admin_back_main")],
+        ]
+    )
+
+    text = (
+        "🏛️ <b>University Directory Management</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"📊 Currently Registered Universities: <b>{len(universities)}</b>\n\n"
+        "You can add a new university by sending its Name and formatted About text, or delete existing ones."
+    )
+    await callback.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "admin_add_uni")
+async def cb_admin_add_uni(callback: CallbackQuery, state: FSMContext):
+    """Start university creation flow."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    await state.set_state(AdminUniState.waiting_for_name)
+    await callback.message.answer(
+        "🏛️ <b>Step 1/2: Enter University Name</b>\n\n"
+        "Please send the name of the university (e.g. <code>Bahir Dar University (BDU)</code>):",
+        parse_mode=ParseMode.HTML,
+    )
+
+
+@router.message(AdminUniState.waiting_for_name)
+async def state_admin_uni_name(message: Message, state: FSMContext):
+    """Receive university name."""
+    if not is_admin(message.from_user.id):
+        return
+    name = message.text.strip()
+    await state.update_data(name=name)
+    await state.set_state(AdminUniState.waiting_for_about)
+    await message.answer(
+        f"🏛️ <b>Step 2/2: Send About Text for {name}</b>\n\n"
+        "Send or paste the complete formatted guide/about text (supports HTML formatting, links, bold, bullet points):\n\n"
+        "<i>(Tip: You can include location, dorm/cafe info, cutoffs, and group link in this single message)</i>",
+        parse_mode=ParseMode.HTML,
+    )
+
+
+@router.message(AdminUniState.waiting_for_about)
+async def state_admin_uni_about(message: Message, state: FSMContext):
+    """Receive university about text and save to DB."""
+    if not is_admin(message.from_user.id):
+        return
+    data = await state.get_data()
+    name = data["name"]
+    # Extract HTML or formatted text from message
+    about_text = message.html_text if hasattr(message, "html_text") else message.text
+
+    await db.add_university(name, about_text)
+    await state.clear()
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🏛️ View Universities Menu", callback_data="admin_unis_menu")],
+            [InlineKeyboardButton(text="👑 Admin Menu", callback_data="admin_back_main")],
+        ]
+    )
+    await message.answer(
+        f"✅ <b>Successfully Added University:</b>\n\n<b>{name}</b>\n\n"
+        "Students can now browse and view this university from the bot menu!",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.callback_query(F.data == "admin_del_uni_list")
+async def cb_admin_del_uni_list(callback: CallbackQuery):
+    """List universities with delete buttons."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    universities = await db.get_all_universities()
+
+    if not universities:
+        await callback.message.answer("<i>No universities to delete.</i>", parse_mode=ParseMode.HTML)
+        return
+
+    keyboard = []
+    for u in universities:
+        keyboard.append([
+            InlineKeyboardButton(text=f"🗑️ Delete: {u.name}", callback_data=f"admin_del_uni_do_{u.id}")
+        ])
+    keyboard.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_unis_menu")])
+
+    await callback.message.answer(
+        "🗑️ <b>Select a University to Delete:</b>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+    )
+
+
+@router.callback_query(F.data.startswith("admin_del_uni_do_"))
+async def cb_admin_del_uni_do(callback: CallbackQuery):
+    """Confirm deletion of university."""
+    if not is_admin(callback.from_user.id):
+        return
+    uni_id = int(callback.data.partition("admin_del_uni_do_")[2])
+    await db.delete_university(uni_id)
+    await callback.answer("✅ University deleted!", show_alert=True)
+    await cb_admin_unis_menu(callback)
+
+
+# ── Edit University Flow ──────────────────────────────────────────────
+
+@router.callback_query(F.data == "admin_edit_uni_list")
+async def cb_admin_edit_uni_list(callback: CallbackQuery):
+    """List all universities with edit buttons."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    universities = await db.get_all_universities()
+
+    if not universities:
+        await callback.message.answer("<i>No universities to edit.</i>", parse_mode=ParseMode.HTML)
+        return
+
+    keyboard = []
+    for u in universities:
+        keyboard.append([
+            InlineKeyboardButton(
+                text=f"✏️ {u.name}",
+                callback_data=f"admin_edit_uni_do_{u.id}",
+            )
+        ])
+    keyboard.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_unis_menu")])
+
+    await callback.message.answer(
+        "✏️ <b>Select a University to Edit:</b>\n"
+        "<i>You will be asked to send the new About text for the selected university.</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+    )
+
+
+@router.callback_query(F.data.startswith("admin_edit_uni_do_"))
+async def cb_admin_edit_uni_do(callback: CallbackQuery, state: FSMContext):
+    """Show current about text preview and prompt admin to send new text."""
+    if not is_admin(callback.from_user.id):
+        return
+    uni_id = int(callback.data.partition("admin_edit_uni_do_")[2])
+    uni = await db.get_university_by_id(uni_id)
+    if not uni:
+        await callback.answer("⚠️ University not found!", show_alert=True)
+        return
+
+    await state.update_data(edit_uni_id=uni_id, edit_uni_name=uni.name)
+    await state.set_state(AdminUniEditState.waiting_for_new_about)
+    await callback.answer()
+
+    # Show a trimmed preview of the current text so admin knows what they are replacing
+    preview = uni.about_text[:600] + ("..." if len(uni.about_text) > 600 else "")
+    await callback.message.answer(
+        f"✏️ <b>Editing: {html.escape(uni.name)}</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "<b>📄 Current About Text (preview):</b>\n"
+        f"<blockquote>{html.escape(preview)}</blockquote>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "📝 <b>Send the complete new About text now.</b>\n"
+        "<i>Tip: Copy the text above, paste it into your message editor, make your edits, then send.</i>\n\n"
+        "Type /cancel to abort without saving.",
+        parse_mode=ParseMode.HTML,
+    )
+
+
+@router.message(AdminUniEditState.waiting_for_new_about)
+async def state_admin_uni_edit_about(message: Message, state: FSMContext):
+    """Receive new about text and update university in DB."""
+    if not is_admin(message.from_user.id):
+        return
+    data = await state.get_data()
+    uni_id = data["edit_uni_id"]
+    uni_name = data["edit_uni_name"]
+
+    # Prefer html_text to preserve bold/italic formatting the admin may send
+    new_about = message.html_text if hasattr(message, "html_text") and message.html_text else message.text
+
+    updated = await db.update_university(uni_id, new_about)
+    await state.clear()
+
+    if updated:
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="✏️ Edit Another University", callback_data="admin_edit_uni_list")],
+                [InlineKeyboardButton(text="🏙️ Universities Menu", callback_data="admin_unis_menu")],
+                [InlineKeyboardButton(text="👑 Admin Menu", callback_data="admin_back_main")],
+            ]
+        )
+        await message.answer(
+            f"✅ <b>Successfully Updated:</b> <b>{html.escape(uni_name)}</b>\n\n"
+            "Students will see the updated information immediately.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+        )
+    else:
+        await message.answer(
+            f"⚠️ <b>Update failed</b> — university ID {uni_id} not found in database.",
+            parse_mode=ParseMode.HTML,
         )
 
-    lines.append("━━━━━━━━━━━━━━━━━━━━")
-    lines.append("✅ ነጥቦች ለቀጣዩ ሳምንት ዜሮ (Reset) ሆነዋል!")
 
-    await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
+# ── Courses & Materials Management CMS ───────────────────────────────────────
+
+
+@router.callback_query(F.data == "admin_courses_menu")
+async def cb_admin_courses_menu(callback: CallbackQuery):
+    """Courses & materials management menu."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    courses = await db.get_all_courses()
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="➕ Add New Course", callback_data="admin_add_course")],
+            [InlineKeyboardButton(text="📤 Upload Material (PDF / Notes)", callback_data="admin_upload_mat")],
+            [InlineKeyboardButton(text="🗑️ Delete a Course", callback_data="admin_del_course_list")],
+            [InlineKeyboardButton(text="🔙 Back to Admin Menu", callback_data="admin_back_main")],
+        ]
+    )
+
+    text = (
+        "📚 <b>Courses & Materials Management</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"📊 Currently Registered Courses: <b>{len(courses)}</b>\n\n"
+        "Select an action to add courses, upload PDF modules/handouts, or delete courses."
+    )
+    await callback.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "admin_add_course")
+async def cb_admin_add_course(callback: CallbackQuery, state: FSMContext):
+    """Start course creation flow."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    await state.set_state(AdminCourseState.waiting_for_name)
+    await callback.message.answer(
+        "📚 <b>Add New Course</b>\n\n"
+        "Please send the name of the course (e.g. <code>Applied Mathematics II</code>):",
+        parse_mode=ParseMode.HTML,
+    )
+
+
+@router.message(AdminCourseState.waiting_for_name)
+async def state_admin_course_name(message: Message, state: FSMContext):
+    """Receive course name and create course."""
+    if not is_admin(message.from_user.id):
+        return
+    name = message.text.strip()
+    await db.add_course(name)
+    await state.clear()
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📚 Courses Menu", callback_data="admin_courses_menu")],
+            [InlineKeyboardButton(text="👑 Admin Menu", callback_data="admin_back_main")],
+        ]
+    )
+    await message.answer(
+        f"✅ <b>Successfully Added Course:</b> <code>{name}</code>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.callback_query(F.data == "admin_upload_mat")
+async def cb_admin_upload_mat(callback: CallbackQuery):
+    """Select course for uploading material."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    courses = await db.get_all_courses()
+
+    if not courses:
+        await callback.message.answer("<i>No courses available. Please add a course first.</i>", parse_mode=ParseMode.HTML)
+        return
+
+    keyboard = []
+    for c in courses:
+        keyboard.append([
+            InlineKeyboardButton(text=f"{c.icon} {c.name}", callback_data=f"admat_c_{c.id}")
+        ])
+    keyboard.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_courses_menu")])
+
+    await callback.message.answer(
+        "📤 <b>Select Course to Upload Material To:</b>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+    )
+
+
+@router.callback_query(F.data.startswith("admat_c_"))
+async def cb_admin_upload_select_course(callback: CallbackQuery, state: FSMContext):
+    """Select category for material."""
+    if not is_admin(callback.from_user.id):
+        return
+    course_id = int(callback.data.partition("admat_c_")[2])
+    await state.update_data(course_id=course_id)
+    await callback.answer()
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📖 Official Module (PDF)", callback_data="admat_cat_module")],
+            [InlineKeyboardButton(text="📝 Summary Notes & Handouts", callback_data="admat_cat_note")],
+            [InlineKeyboardButton(text="📑 Midterm Exam Bank", callback_data="admat_cat_midterm")],
+            [InlineKeyboardButton(text="🎯 Final Exam Bank", callback_data="admat_cat_final")],
+            [InlineKeyboardButton(text="🎥 Video Tutorial / Link", callback_data="admat_cat_video")],
+            [InlineKeyboardButton(text="🔙 Back", callback_data="admin_upload_mat")],
+        ]
+    )
+
+    await callback.message.answer(
+        "📁 <b>Select Category for this Material:</b>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.callback_query(F.data.startswith("admat_cat_"))
+async def cb_admin_upload_select_category(callback: CallbackQuery, state: FSMContext):
+    """Ask for material title."""
+    if not is_admin(callback.from_user.id):
+        return
+    category = callback.data.partition("admat_cat_")[2]
+    await state.update_data(category=category)
+    await state.set_state(AdminMaterialState.waiting_for_title)
+    await callback.answer()
+
+    await callback.message.answer(
+        "📝 <b>Enter Material Title:</b>\n\n"
+        "Send the title for this document (e.g. <code>2010-2016 Midterm Exam Collection with Solutions</code>):",
+        parse_mode=ParseMode.HTML,
+    )
+
+
+@router.message(AdminMaterialState.waiting_for_title)
+async def state_admin_mat_title(message: Message, state: FSMContext):
+    """Receive material title and ask for file."""
+    if not is_admin(message.from_user.id):
+        return
+    title = message.text.strip()
+    await state.update_data(title=title)
+    await state.set_state(AdminMaterialState.waiting_for_file)
+
+    await message.answer(
+        f"📎 <b>Send File or Link for '{title}':</b>\n\n"
+        "• <b>Option A:</b> Attach and send the <b>PDF / Document</b> directly in chat.\n"
+        "• <b>Option B:</b> Or send a <b>Google Drive / Video URL</b> as text.",
+        parse_mode=ParseMode.HTML,
+    )
+
+
+@router.message(AdminMaterialState.waiting_for_file)
+async def state_admin_mat_file(message: Message, state: FSMContext):
+    """Receive file attachment or URL and save material."""
+    if not is_admin(message.from_user.id):
+        return
+    data = await state.get_data()
+    course_id = data["course_id"]
+    category = data["category"]
+    title = data["title"]
+
+    file_id = None
+    external_url = None
+
+    if message.document:
+        file_id = message.document.file_id
+    elif message.video:
+        file_id = message.video.file_id
+    elif message.audio:
+        file_id = message.audio.file_id
+    elif message.text and (message.text.startswith("http://") or message.text.startswith("https://")):
+        external_url = message.text.strip()
+    else:
+        await message.answer("⚠️ Please attach a valid file (PDF/Document) or send a valid URL starting with https://")
+        return
+
+    await db.add_material(
+        course_id=course_id,
+        category=category,
+        title=title,
+        file_id=file_id,
+        external_url=external_url,
+    )
+    await state.clear()
+
+    course = await db.get_course_by_id(course_id)
+    c_name = course.name if course else "Course"
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📤 Upload Another File", callback_data="admin_upload_mat")],
+            [InlineKeyboardButton(text="📚 Courses Menu", callback_data="admin_courses_menu")],
+            [InlineKeyboardButton(text="👑 Admin Menu", callback_data="admin_back_main")],
+        ]
+    )
+
+    await message.answer(
+        f"✅ <b>Successfully Uploaded Material!</b>\n\n"
+        f"• Course: <b>{c_name}</b>\n"
+        f"• Category: <b>{category}</b>\n"
+        f"• Title: <b>{title}</b>\n\n"
+        "Students can now browse and download this file instantly from the bot!",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.callback_query(F.data == "admin_del_course_list")
+async def cb_admin_del_course_list(callback: CallbackQuery):
+    """List courses with delete buttons."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    courses = await db.get_all_courses()
+
+    if not courses:
+        await callback.message.answer("<i>No courses to delete.</i>", parse_mode=ParseMode.HTML)
+        return
+
+    keyboard = []
+    for c in courses:
+        keyboard.append([
+            InlineKeyboardButton(text=f"🗑️ Delete: {c.name}", callback_data=f"admin_del_course_do_{c.id}")
+        ])
+    keyboard.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_courses_menu")])
+
+    await callback.message.answer(
+        "🗑️ <b>Select a Course to Delete:</b>\n<i>(Warning: Deleting a course will also remove all its materials)</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+    )
+
+
+@router.callback_query(F.data.startswith("admin_del_course_do_"))
+async def cb_admin_del_course_do(callback: CallbackQuery):
+    """Confirm deletion of course."""
+    if not is_admin(callback.from_user.id):
+        return
+    course_id = int(callback.data.partition("admin_del_course_do_")[2])
+    await db.delete_course(course_id)
+    await callback.answer("✅ Course deleted!", show_alert=True)
+    await cb_admin_courses_menu(callback)
+
+
+@router.callback_query(F.data == "admin_back_main")
+async def cb_admin_back_main(callback: CallbackQuery):
+    """Returns to the main admin control panel."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    text = (
+        "👑 <b>FreshMinds Invite Bot — Admin Control Center</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Select an action or use direct commands:\n\n"
+        "• <code>/admin_stats</code> ➜ View global growth analytics\n"
+        "• <code>/audit &lt;user_id&gt;</code> ➜ View a user's invited members\n"
+        "• <code>/add_points &lt;user_id&gt; &lt;points&gt;</code> ➜ Add manual bonus\n"
+        "• <code>/remove_points &lt;user_id&gt; &lt;points&gt;</code> ➜ Deduct points\n"
+        "• <code>/broadcast &lt;text&gt;</code> ➜ Send announcement to all\n"
+        "• <code>/reset_week &lt;name&gt;</code> ➜ Archive Top 4 and reset"
+    )
+    await callback.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=get_admin_menu_markup())

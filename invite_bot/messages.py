@@ -2,6 +2,7 @@
 FreshMinds Invite Competition Bot — Message Templates (Amharic & English)
 """
 
+import html
 from config import (
     TARGET_CHANNEL,
     COMPETITION_TITLE,
@@ -12,6 +13,9 @@ from config import (
 )
 
 # ── Main Menu Keyboard Labels ────────────────────────────────────────────────
+BTN_RESOURCES = "📚 ኮርሶችና ማቴሪያሎች (Resources)"
+BTN_UNIVERSITIES = "🏛️ የዩኒቨርሲቲዎች መረጃ (Universities)"
+BTN_GPA_CALC = "🧮 GPA ማስያ (Calculator)"
 BTN_GET_LINK = "🔗 የእኔ መጋበዣ ሊንክ (My Link)"
 BTN_MY_STATS = "📊 የእኔ ውጤት (My Stats)"
 BTN_LEADERBOARD = "🏆 የሳምንቱ ደረጃ (Leaderboard)"
@@ -19,16 +23,99 @@ BTN_RULES = "🎁 ሽልማቶችና ህጎች (Prizes & Rules)"
 
 # ── Welcome / Start Message ──────────────────────────────────────────────────
 WELCOME_TEXT = (
-    f"🎉 <b>እንኳን ወደ {COMPETITION_TITLE} በደህና መጡ!</b>\n"
+    f"🎉 <b>እንኳን ወደ FreshMinds Academy በደህና መጡ!</b> 🇪🇹\n"
     "━━━━━━━━━━━━━━━━━━━━\n"
-    f"ጓደኞችዎን ወደ <b>@{TARGET_CHANNEL}</b> በመጋበዝ ከፍተኛ ተሸላሚ ይሁኑ!\n\n"
-    "🎁 <b>የሳምንቱ ከፍተኛ 4 አሸናፊዎች ሽልማት:</b>\n"
-    f"🥇 1ኛ: <b>{PRIZE_1ST}</b>\n"
-    f"🥈 2ኛ: <b>{PRIZE_2ND}</b>\n"
-    f"🥉 3ኛ: <b>{PRIZE_3RD}</b>\n"
-    f"🎖️ 4ኛ: <b>{PRIZE_4TH}</b>\n\n"
-    "👇 የራስዎን ልዩ መጋበዣ ሊንክ ለማግኘት ከታች <b>'🔗 የእኔ መጋበዣ ሊንክ'</b> የሚለውን ይጫኑ!"
+    "ለ 2018 ዓ.ም የ Freshman ዩኒቨርሲቲ ተማሪዎች የተዘጋጀ ሁለገብ የትምህርትና መረጃ ቦት:\n\n"
+    "📚 <b>የኮርስ ማቴሪያሎች:</b> የ 1ኛ አመት ሞጁሎች፣ የማጠቃለያ ኖቶችና ያለፉ ፈተናዎች\n"
+    "🏛️ <b>የዩኒቨርሲቲዎች መረጃ:</b> የኢትዮጵያ ዩኒቨርሲቲዎች አጠቃላይ መረጃና የካምፓስ ህይወት\n"
+    "🧮 <b>GPA ማስያ:</b> የ 1st Semester ውጤት በቀላሉ የሚያሰሉበት ልዩ ካልኩሌተር\n"
+    f"🎁 <b>ሳምንታዊ ውድድር:</b> ጓደኞችን በመጋበዝ የገንዘብና የሞባይል ካርድ ሽልማቶችን ያሸንፉ!\n\n"
+    "👇 <b>ከታች ካሉት አማራጮች የሚፈልጉትን ይምረጡ:</b>"
 )
+
+# ── Ethiopian MoE Grade Point Mapping ─────────────────────────────────────────
+GRADE_POINTS = {
+    "A+": 4.0,
+    "A": 4.0,
+    "A-": 3.75,
+    "B+": 3.5,
+    "B": 3.0,
+    "B-": 2.75,
+    "C+": 2.5,
+    "C": 2.0,
+    "C-": 1.75,
+    "D": 1.0,
+    "F": 0.0,
+}
+
+
+def calculate_gpa(courses: dict) -> tuple[float, int, float, list[dict]]:
+    """
+    Calculates GPA ignoring unfilled slots.
+    courses is a dict: {1: {'ch': 4, 'grade': 'A'}, 2: {'ch': 3, 'grade': 'A-'}, ...}
+    Returns (gpa, total_ch, total_pts, filled_courses_breakdown)
+    """
+    total_ch = 0
+    total_pts = 0.0
+    breakdown = []
+
+    for idx in sorted(courses.keys()):
+        item = courses[idx]
+        ch = item.get("ch")
+        grade = item.get("grade")
+        if ch and grade and grade in GRADE_POINTS:
+            ch_val = int(ch)
+            pts_val = GRADE_POINTS[grade] * ch_val
+            total_ch += ch_val
+            total_pts += pts_val
+            breakdown.append({
+                "idx": idx,
+                "ch": ch_val,
+                "grade": grade,
+                "pts": pts_val,
+            })
+
+    gpa = (total_pts / total_ch) if total_ch > 0 else 0.0
+    return round(gpa, 2), total_ch, round(total_pts, 2), breakdown
+
+
+def format_gpa_result_card(gpa: float, total_ch: int, total_pts: float, breakdown: list[dict]) -> str:
+    """Formats student semester GPA calculation result."""
+    if gpa >= 3.80:
+        standing = "Very Great Distinction (እጅግ በጣም ከፍተኛ ማዕረግ 🌟)"
+        advice = "💡 <b>እጅግ ድንቅ ውጤት!</b> በዚህ GPA ወደ Medicine, Software Engineering እና Electrical በቀላሉ መግባት ይችላሉ!"
+    elif gpa >= 3.60:
+        standing = "Great Distinction (በጣም ከፍተኛ ማዕረግ 🏅)"
+        advice = "💡 <b>በጣም ከፍተኛ ውጤት!</b> ወደ ተወዳጅ የኢንጂነሪንግና የጤና ዲፓርትመንቶች የሚያስገባ ውጤት ነው!"
+    elif gpa >= 3.25:
+        standing = "Distinction (ከፍተኛ ማዕረግ 🎖️)"
+        advice = "💡 <b>ጥሩ ውጤት!</b> ጥረታችሁን አጠናክራችሁ በመቀጠል የፈለጋችሁትን ዲፓርትመንት መምረጥ ትችላላችሁ!"
+    elif gpa >= 2.00:
+        standing = "Satisfactory (ያለፉ / Promoted ✅)"
+        advice = "💡 <b>ያለፉ ውጤት!</b> በቀጣይ ፈተናዎች ውጤታችሁን የበለጠ ለማሻሻል በርትታችሁ አንብቡ!"
+    elif gpa >= 1.75:
+        standing = "Academic Warning (ማስጠንቀቂያ ⚠️)"
+        advice = "⚠️ <b>ማስጠንቀቂያ!</b> ውጤታችሁ ከ 2.00 በታች እንዳይወርድ ለቀጣይ ሴሚስተር ጠንክራችሁ መስራት አለባችሁ!"
+    else:
+        standing = "Academic Dismissal Risk (የመሰናበት አደጋ ❌)"
+        advice = "❌ <b>አስቸኳይ ጥረት ያስፈልጋል!</b> ውጤታችሁን ለማሻሻል የ FreshMinds ማጠቃለያዎችን አሁኑኑ አንብቡ!"
+
+    lines = [
+        "📊 <b>የእርስዎ የ 1st Semester ውጤት ስሌት (GPA Card)</b>",
+        "━━━━━━━━━━━━━━━━━━━━",
+    ]
+    for b in breakdown:
+        lines.append(
+            f"• Course-{b['idx']} (<b>{b['ch']} CH</b>) : <b>{b['grade']}</b> ➜ <b>{b['pts']:.2f}</b> Pts"
+        )
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append(f"📌 ጠቅላላ Credit Hours (Total CH): <b>{total_ch}</b>")
+    lines.append(f"⭐ ጠቅላላ Grade Points: <b>{total_pts:.2f}</b>")
+    lines.append(f"🏆 <b>Semester GPA: <code>{gpa:.2f} / 4.00</code></b>")
+    lines.append(f"🎖️ ደረጃ: <b>{standing}</b>\n")
+    lines.append(advice)
+
+    return "\n".join(lines)
 
 
 # ── Ready-to-Forward Promotional Marketing Post ──────────────────────────────
@@ -47,8 +134,7 @@ def format_promotional_post(invite_link: str) -> str:
         "🏛️ <b>የዩኒቨርሲቲ ምደባ</b> እና የዲፓርትመንት መረጣ መረጃዎች\n"
         "📱 <b>FreshMinds Mobile App</b> (በቅርቡ የሚለቀቅ)\n\n"
         "👇 <b>አሁኑኑ ቻናሉን ይቀላቀሉ:</b>\n"
-        f"{invite_link}\n\n"
-        f"@{TARGET_CHANNEL}"
+        f"{invite_link}"
     )
 
 
@@ -71,10 +157,11 @@ def format_link_card(invite_link: str) -> str:
 # ── Instant Join / Leave Push Notifications ──────────────────────────────────
 def format_join_notification(friend_name: str, active_points: int, rank: int) -> str:
     """Instant push notification sent to inviter when someone joins."""
+    safe_name = html.escape(friend_name)
     return (
         f"🎉 <b>እንኳን ደስ አለዎት! አዲስ ሰው ተቀላቅሏል!</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        f"👤 <b>{friend_name}</b> በርስዎ መጋበዣ ሊንክ ቻናላችንን ተቀላቅለዋል!\n\n"
+        f"👤 <b>{safe_name}</b> በርስዎ መጋበዣ ሊንክ ቻናላችንን ተቀላቅለዋል!\n\n"
         f"⭐ ያገኙት ነጥብ: <b>+1</b>\n"
         f"📊 አጠቃላይ ነጥብዎ: <b>{active_points}</b>\n"
         f"🏆 አሁን ያሉበት ደረጃ: <b>#{rank}</b>"
@@ -83,10 +170,11 @@ def format_join_notification(friend_name: str, active_points: int, rank: int) ->
 
 def format_leave_notification(friend_name: str, active_points: int) -> str:
     """Notification if a member leaves the channel."""
+    safe_name = html.escape(friend_name)
     return (
         f"⚠️ <b>አንድ ሰው ቻናሉን ለቋል!</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        f"👤 <b>{friend_name}</b> ቻናሉን በመልቀቃቸው <b>-1 ነጥብ</b> ተቀንሷል።\n"
+        f"👤 <b>{safe_name}</b> ቻናሉን በመልቀቃቸው <b>-1 ነጥብ</b> ተቀንሷል።\n"
         f"📊 የአሁኑ ነጥብዎ: <b>{active_points}</b>"
     )
 
@@ -96,9 +184,10 @@ def format_stats_card(
     first_name: str, active_points: int, total_joins: int, rank: int
 ) -> str:
     """Displays personal competition statistics and progress."""
+    safe_name = html.escape(first_name)
     left_count = total_joins - active_points
     return (
-        f"📊 <b>የእኔ ውድድር ውጤት | {first_name}</b>\n"
+        f"📊 <b>የእኔ ውድድር ውጤት | {safe_name}</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         f"⭐ ንቁ ነጥብ (Active Points): <b>{active_points}</b>\n"
         f"👥 አጠቃላይ የተቀላቀሉ: <b>{total_joins}</b>\n"
@@ -110,11 +199,18 @@ def format_stats_card(
 
 
 # ── Real-Time Top 10 Leaderboard ─────────────────────────────────────────────
-def format_leaderboard(top_users, my_rank: int, my_points: int) -> str:
-    """Renders formatted Top 10 leaderboard with medals."""
+def format_leaderboard(
+    top_users, my_rank: int, my_points: int, is_admin: bool = False
+) -> str:
+    """Renders formatted Top 10 leaderboard (clean display name for users, clickable username for admin)."""
+    header_title = (
+        "👑 <b>የሳምንቱ ከፍተኛ አጋባዦች (Admin View)</b>"
+        if is_admin
+        else "🌟 <b>የሳምንቱ ከፍተኛ አጋባዦች (Leaderboard)</b>"
+    )
     lines = [
         f"🏆 <b>{COMPETITION_TITLE}</b>",
-        "🌟 <b>የሳምንቱ ከፍተኛ አጋባዦች (Leaderboard)</b>",
+        header_title,
         "━━━━━━━━━━━━━━━━━━━━",
     ]
 
@@ -124,10 +220,19 @@ def format_leaderboard(top_users, my_rank: int, my_points: int) -> str:
         medals = {1: "🥇", 2: "🥈", 3: "🥉", 4: "🎖️"}
         for u in top_users:
             medal = medals.get(u.rank, f"<b>{u.rank}.</b>")
-            display_name = u.first_name
-            if u.username:
-                display_name += f" (@{u.username})"
-            lines.append(f"{medal} {display_name} ➜ <b>{u.points}</b> ተጋባዥ")
+            display_name = html.escape(u.first_name)
+
+            if is_admin:
+                # Clickable username & profile for Admin
+                if u.username:
+                    user_tag = f'<b>{display_name}</b> (<a href="https://t.me/{u.username}">@{u.username}</a>)'
+                else:
+                    user_tag = f'<b><a href="tg://user?id={u.user_id}">{display_name}</a></b> [ID: <code>{u.user_id}</code>]'
+            else:
+                # Clean, unclickable text for regular users (privacy/security safe)
+                user_tag = f"<b>{display_name}</b>"
+
+            lines.append(f"{medal} {user_tag} ➜ <b>{u.points}</b> ተጋባዥ")
 
     lines.append("━━━━━━━━━━━━━━━━━━━━")
     lines.append(

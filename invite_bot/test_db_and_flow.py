@@ -61,6 +61,13 @@ async def run_tests():
     dup_ref = await test_db.record_referral(1002, 2001, link2)
     assert not dup_ref, "Duplicate user join must not give multiple credits"
 
+    # Test Pending Referrer flow
+    await test_db.set_pending_referrer(5001, 1001)
+    pending = await test_db.get_pending_referrer(5001)
+    assert pending == 1001
+    await test_db.clear_pending_referrer(5001)
+    assert await test_db.get_pending_referrer(5001) is None
+
     # Sara invites 5 real friends
     for friend_id in range(3001, 3006):
         await test_db.record_referral(1002, friend_id, link2)
@@ -96,17 +103,81 @@ async def run_tests():
     link_card = msg.format_link_card(link1)
     assert f"<code>{link1}</code>" in link_card
 
-    lb_text = msg.format_leaderboard(top_list, rank_abebe, pts_abebe)
-    assert "🥇" in lb_text
+    # Test regular user leaderboard (unclickable & private)
+    lb_user = msg.format_leaderboard(top_list, rank_abebe, pts_abebe, is_admin=False)
+    assert "🥇" in lb_user
+    assert "@" not in lb_user
+
+    # Test admin leaderboard (clickable username/profile)
+    lb_admin = msg.format_leaderboard(top_list, rank_abebe, pts_abebe, is_admin=True)
+    assert "🥇" in lb_admin
+    assert "https://t.me/" in lb_admin
 
     print("  ✅ 7. Amharic & English message templates formatting verified.")
+
+    # 8. Test Universities CRUD & Seeding
+    unis = await test_db.get_all_universities()
+    assert len(unis) >= 5, "Default universities should be seeded"
+    assert "Addis Ababa University" in unis[0].name
+
+    new_uni_id = await test_db.add_university("Gondar University (UoG)", "About Gondar...")
+    gondar = await test_db.get_university_by_id(new_uni_id)
+    assert gondar and gondar.name == "Gondar University (UoG)"
+    await test_db.delete_university(new_uni_id)
+    assert await test_db.get_university_by_id(new_uni_id) is None
+    print("  ✅ 8. Universities directory CRUD & default seeding passed.")
+
+    # 9. Test Courses & Materials CRUD & Seeding
+    courses = await test_db.get_all_courses()
+    assert len(courses) >= 10, "Default freshman courses should be seeded"
+    assert "Applied Mathematics I" in courses[0].name
+
+    c1_id = courses[0].id
+    m1_id = await test_db.add_material(
+        course_id=c1_id,
+        category="midterm",
+        title="2016 Midterm Exam with Solutions",
+        file_id="tg_doc_12345",
+    )
+    materials = await test_db.get_materials_by_course(c1_id, "midterm")
+    assert len(materials) == 1 and materials[0].title == "2016 Midterm Exam with Solutions"
+    await test_db.delete_material(m1_id)
+    assert len(await test_db.get_materials_by_course(c1_id, "midterm")) == 0
+    print("  ✅ 9. Courses & Materials explorer CRUD passed.")
+
+    # 10. Test GPA Calculator Math Engine
+    # Student has 5 courses filled and 3 unfilled courses (Course 6, 7, 8 are None)
+    test_courses_data = {
+        1: {"ch": 4, "grade": "A"},    # 4 * 4.0 = 16.0
+        2: {"ch": 3, "grade": "A-"},   # 3 * 3.75 = 11.25
+        3: {"ch": 3, "grade": "B+"},   # 3 * 3.5 = 10.5
+        4: {"ch": 3, "grade": "A"},    # 3 * 4.0 = 12.0
+        5: {"ch": 2, "grade": "B"},    # 2 * 3.0 = 6.0
+        6: {"ch": None, "grade": None}, # Unfilled - must be ignored!
+        7: {"ch": None, "grade": None}, # Unfilled - must be ignored!
+        8: {"ch": None, "grade": None}, # Unfilled - must be ignored!
+    }
+    # Total CH = 4 + 3 + 3 + 3 + 2 = 15
+    # Total Pts = 16.0 + 11.25 + 10.5 + 12.0 + 6.0 = 55.75
+    # GPA = 55.75 / 15 = 3.71666... -> 3.72
+    gpa, total_ch, total_pts, breakdown = msg.calculate_gpa(test_courses_data)
+    assert total_ch == 15
+    assert total_pts == 55.75
+    assert gpa == 3.72
+    assert len(breakdown) == 5
+
+    gpa_card = msg.format_gpa_result_card(gpa, total_ch, total_pts, breakdown)
+    assert "3.72 / 4.00" in gpa_card
+    assert "Great Distinction" in gpa_card
+    print("  ✅ 10. GPA Calculator math engine (ignoring unfilled courses) passed.")
 
     # Clean up test DB
     if test_db_path.exists():
         os.remove(test_db_path)
 
-    print("\n🎉 ALL 7 TEST SUITES PASSED WITH 100% SUCCESS!")
+    print("\n🎉 ALL 10 TEST SUITES PASSED WITH 100% SUCCESS!")
 
 
 if __name__ == "__main__":
     asyncio.run(run_tests())
+

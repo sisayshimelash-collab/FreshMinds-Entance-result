@@ -7,6 +7,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.enums import ParseMode
 from database import db
+from config import is_admin
 import messages as msg
 
 router = Router()
@@ -35,6 +36,7 @@ async def handle_leaderboard(message: Message):
         top_users=top_users,
         my_rank=my_rank,
         my_points=my_points,
+        is_admin=is_admin(user.id),
     )
 
     await message.answer(

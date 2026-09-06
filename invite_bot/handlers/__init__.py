@@ -10,12 +10,18 @@ from .stats import router as stats_router
 from .leaderboard import router as leaderboard_router
 from .rules import router as rules_router
 from .admin import router as admin_router
+from .resources import router as resources_router
+from .universities import router as universities_router
+from .gpa_calculator import router as gpa_calculator_router
 
 
 def setup_routers() -> Router:
     main_router = Router()
     main_router.include_router(tracker_router)  # ChatMemberUpdated priority
     main_router.include_router(admin_router)
+    main_router.include_router(resources_router)
+    main_router.include_router(universities_router)
+    main_router.include_router(gpa_calculator_router)
     main_router.include_router(start_router)
     main_router.include_router(invite_router)
     main_router.include_router(stats_router)

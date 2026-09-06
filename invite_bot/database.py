@@ -27,6 +27,30 @@ class LeaderboardEntry(NamedTuple):
     points: int
 
 
+class UniversityRecord(NamedTuple):
+    id: int
+    name: str
+    about_text: str
+    sort_order: int
+
+
+class CourseRecord(NamedTuple):
+    id: int
+    name: str
+    code: str
+    icon: str
+    sort_order: int
+
+
+class MaterialRecord(NamedTuple):
+    id: int
+    course_id: int
+    category: str
+    title: str
+    file_id: Optional[str]
+    external_url: Optional[str]
+
+
 class Database:
     """Async SQLite database manager for user links, referrals, and leaderboards."""
 
@@ -46,12 +70,17 @@ class Database:
                     username TEXT,
                     first_name TEXT NOT NULL,
                     invite_link TEXT UNIQUE,
+                    pending_referrer_id INTEGER,
                     is_active INTEGER DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
 
-            # 2. Referrals Table (1 credit per referred user ID)
+            # Ensure pending_referrer_id column exists if table was created previously
+            try:
+                await db.execute("ALTER TABLE users ADD COLUMN pending_referrer_id INTEGER;")
+            except Exception:
+                pass  # Already exists
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS referrals (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,7 +104,44 @@ class Database:
                 );
             """)
 
-            # Indexes for fast leaderboard & lookup queries
+            # 4. Universities Table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS universities (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    about_text TEXT NOT NULL,
+                    sort_order INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # 5. Courses Table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS courses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    code TEXT,
+                    icon TEXT DEFAULT '📚',
+                    sort_order INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # 6. Course Materials Table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS course_materials (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    course_id INTEGER NOT NULL,
+                    category TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    file_id TEXT,
+                    external_url TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+                );
+            """)
+
+            # Indexes for fast lookup queries
             await db.execute(
                 "CREATE INDEX IF NOT EXISTS idx_users_link ON users(invite_link);"
             )
@@ -85,6 +151,43 @@ class Database:
             await db.execute(
                 "CREATE INDEX IF NOT EXISTS idx_referrals_referred ON referrals(referred_user_id);"
             )
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_materials_course ON course_materials(course_id, category);"
+            )
+
+            # Seed default courses if empty
+            cursor = await db.execute("SELECT COUNT(*) FROM courses")
+            if (await cursor.fetchone())[0] == 0:
+                default_courses = [
+                    ("Applied Mathematics I", "MATH1011", "📐", 1),
+                    ("General Physics", "PHYS1011", "⚡", 2),
+                    ("General Chemistry", "CHEM1011", "🧪", 3),
+                    ("Logic & Critical Thinking", "PHIL1011", "🧠", 4),
+                    ("Introduction to Emerging Tech", "EMTE1011", "💻", 5),
+                    ("Geography of Ethiopia & Horn", "GEOG1011", "🌍", 6),
+                    ("Communicative English Skills I", "ENGL1011", "🗣️", 7),
+                    ("Inclusiveness", "INCL1011", "🤝", 8),
+                    ("Social Anthropology", "ANTH1011", "🏛️", 9),
+                    ("General Psychology", "PSYC1011", "🧘", 10),
+                ]
+                await db.executemany(
+                    "INSERT INTO courses (name, code, icon, sort_order) VALUES (?, ?, ?, ?)",
+                    default_courses,
+                )
+
+            # Seed default universities if empty
+            cursor = await db.execute("SELECT COUNT(*) FROM universities")
+            if (await cursor.fetchone())[0] == 0:
+                try:
+                    from seed_universities import UNIVERSITIES_DATA
+                    default_unis = UNIVERSITIES_DATA
+                except Exception:
+                    default_unis = []
+                if default_unis:
+                    await db.executemany(
+                        "INSERT INTO universities (name, about_text, sort_order) VALUES (?, ?, ?)",
+                        default_unis,
+                    )
 
             await db.commit()
             logger.info("Database initialized successfully.")
@@ -138,6 +241,38 @@ class Database:
             await db.execute(
                 "UPDATE users SET invite_link = ? WHERE user_id = ?",
                 (invite_link.strip(), user_id),
+            )
+            await db.commit()
+
+    async def set_pending_referrer(self, user_id: int, referrer_id: int):
+        """Set a pending referrer for a user before they join the channel."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO users (user_id, first_name, pending_referrer_id)
+                VALUES (?, 'Student', ?)
+                ON CONFLICT(user_id) DO UPDATE SET pending_referrer_id = excluded.pending_referrer_id
+                """,
+                (user_id, referrer_id),
+            )
+            await db.commit()
+
+    async def get_pending_referrer(self, user_id: int) -> Optional[int]:
+        """Get pending referrer for a user."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "SELECT pending_referrer_id FROM users WHERE user_id = ?",
+                (user_id,),
+            )
+            row = await cursor.fetchone()
+            return row[0] if row and row[0] else None
+
+    async def clear_pending_referrer(self, user_id: int):
+        """Clear pending referrer for a user after referral credit is processed."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "UPDATE users SET pending_referrer_id = NULL WHERE user_id = ?",
+                (user_id,),
             )
             await db.commit()
 
@@ -418,6 +553,214 @@ class Database:
             await db.commit()
 
         return top_winners
+
+    # ── Universities CRUD ────────────────────────────────────────────────────
+    async def get_all_universities(self) -> list[UniversityRecord]:
+        """Fetch all universities ordered by sort_order and name."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                "SELECT id, name, about_text, sort_order FROM universities ORDER BY sort_order ASC, name ASC"
+            )
+            rows = await cursor.fetchall()
+            return [
+                UniversityRecord(
+                    id=r["id"],
+                    name=r["name"],
+                    about_text=r["about_text"],
+                    sort_order=r["sort_order"],
+                )
+                for r in rows
+            ]
+
+    async def get_university_by_id(self, uni_id: int) -> Optional[UniversityRecord]:
+        """Fetch single university by ID."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                "SELECT id, name, about_text, sort_order FROM universities WHERE id = ?",
+                (uni_id,),
+            )
+            row = await cursor.fetchone()
+            if row:
+                return UniversityRecord(
+                    id=row["id"],
+                    name=row["name"],
+                    about_text=row["about_text"],
+                    sort_order=row["sort_order"],
+                )
+            return None
+
+    async def add_university(self, name: str, about_text: str) -> int:
+        """Add new university."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "INSERT INTO universities (name, about_text) VALUES (?, ?)",
+                (name.strip(), about_text.strip()),
+            )
+            await db.commit()
+            return cursor.lastrowid
+
+    async def delete_university(self, uni_id: int) -> bool:
+        """Delete a university by ID."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("DELETE FROM universities WHERE id = ?", (uni_id,))
+            await db.commit()
+            return cursor.rowcount > 0
+
+    async def update_university(self, uni_id: int, about_text: str) -> bool:
+        """Update the about text of an existing university by ID."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "UPDATE universities SET about_text = ? WHERE id = ?",
+                (about_text.strip(), uni_id),
+            )
+            await db.commit()
+            return cursor.rowcount > 0
+
+    # ── Courses CRUD ─────────────────────────────────────────────────────────
+    async def get_all_courses(self) -> list[CourseRecord]:
+        """Fetch all courses ordered by sort_order and name."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                "SELECT id, name, code, icon, sort_order FROM courses ORDER BY sort_order ASC, name ASC"
+            )
+            rows = await cursor.fetchall()
+            return [
+                CourseRecord(
+                    id=r["id"],
+                    name=r["name"],
+                    code=r["code"] or "",
+                    icon=r["icon"] or "📚",
+                    sort_order=r["sort_order"],
+                )
+                for r in rows
+            ]
+
+    async def get_course_by_id(self, course_id: int) -> Optional[CourseRecord]:
+        """Fetch single course by ID."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                "SELECT id, name, code, icon, sort_order FROM courses WHERE id = ?",
+                (course_id,),
+            )
+            row = await cursor.fetchone()
+            if row:
+                return CourseRecord(
+                    id=row["id"],
+                    name=row["name"],
+                    code=row["code"] or "",
+                    icon=row["icon"] or "📚",
+                    sort_order=row["sort_order"],
+                )
+            return None
+
+    async def add_course(self, name: str, code: str = "", icon: str = "📚") -> int:
+        """Add new course."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "INSERT INTO courses (name, code, icon) VALUES (?, ?, ?)",
+                (name.strip(), code.strip(), icon.strip() or "📚"),
+            )
+            await db.commit()
+            return cursor.lastrowid
+
+    async def delete_course(self, course_id: int) -> bool:
+        """Delete a course and its materials."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("DELETE FROM course_materials WHERE course_id = ?", (course_id,))
+            cursor = await db.execute("DELETE FROM courses WHERE id = ?", (course_id,))
+            await db.commit()
+            return cursor.rowcount > 0
+
+    # ── Course Materials CRUD ────────────────────────────────────────────────
+    async def get_materials_by_course(
+        self, course_id: int, category: Optional[str] = None
+    ) -> list[MaterialRecord]:
+        """Fetch materials for a specific course and optional category."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            if category:
+                cursor = await db.execute(
+                    """
+                    SELECT id, course_id, category, title, file_id, external_url
+                    FROM course_materials
+                    WHERE course_id = ? AND category = ?
+                    ORDER BY id DESC
+                    """,
+                    (course_id, category),
+                )
+            else:
+                cursor = await db.execute(
+                    """
+                    SELECT id, course_id, category, title, file_id, external_url
+                    FROM course_materials
+                    WHERE course_id = ?
+                    ORDER BY id DESC
+                    """,
+                    (course_id,),
+                )
+            rows = await cursor.fetchall()
+            return [
+                MaterialRecord(
+                    id=r["id"],
+                    course_id=r["course_id"],
+                    category=r["category"],
+                    title=r["title"],
+                    file_id=r["file_id"],
+                    external_url=r["external_url"],
+                )
+                for r in rows
+            ]
+
+    async def get_material_by_id(self, material_id: int) -> Optional[MaterialRecord]:
+        """Fetch single material by ID."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                "SELECT id, course_id, category, title, file_id, external_url FROM course_materials WHERE id = ?",
+                (material_id,),
+            )
+            row = await cursor.fetchone()
+            if row:
+                return MaterialRecord(
+                    id=row["id"],
+                    course_id=row["course_id"],
+                    category=row["category"],
+                    title=row["title"],
+                    file_id=row["file_id"],
+                    external_url=row["external_url"],
+                )
+            return None
+
+    async def add_material(
+        self,
+        course_id: int,
+        category: str,
+        title: str,
+        file_id: Optional[str] = None,
+        external_url: Optional[str] = None,
+    ) -> int:
+        """Add new material file or link for a course."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                """
+                INSERT INTO course_materials (course_id, category, title, file_id, external_url)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (course_id, category, title.strip(), file_id, external_url),
+            )
+            await db.commit()
+            return cursor.lastrowid
+
+    async def delete_material(self, material_id: int) -> bool:
+        """Delete material by ID."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("DELETE FROM course_materials WHERE id = ?", (material_id,))
+            await db.commit()
+            return cursor.rowcount > 0
 
 
 # Global database instance

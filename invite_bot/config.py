@@ -32,6 +32,11 @@ ADMIN_IDS: set[int] = {
     int(x.strip()) for x in _raw_admins.split(",") if x.strip().isdigit()
 }
 
+
+def is_admin(user_id: int) -> bool:
+    """Check if a given user ID has admin authorization."""
+    return user_id in ADMIN_IDS
+
 # Competition Information (Top 4 Winners)
 COMPETITION_TITLE: str = os.getenv(
     "COMPETITION_TITLE", "የ 2018 ዓ.ም የ Freshman ሳምንታዊ የመጋበዝ ውድድር"

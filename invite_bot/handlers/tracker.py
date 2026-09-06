@@ -47,27 +47,32 @@ async def handle_channel_chat_member_update(event: ChatMemberUpdated, bot: Bot):
 
     if is_join:
         invite_link_obj = event.invite_link
-        if not invite_link_obj:
-            logger.info(
-                f"User {joining_user.id} ({joining_user.first_name}) joined via direct public username or search."
-            )
-            return
-
-        invite_link_str = invite_link_obj.invite_link
-        link_name = invite_link_obj.name or ""
-
-        # Identify referrer: By exact link match, URL hash match, or link name (ref_<user_id>)
-        referrer = await db.get_user_by_invite_link(invite_link_str)
         referrer_id = None
+        invite_link_str = ""
 
-        if referrer:
-            referrer_id = referrer.user_id
-        elif link_name.startswith("ref_") and link_name[4:].isdigit():
-            referrer_id = int(link_name[4:])
+        if invite_link_obj:
+            invite_link_str = invite_link_obj.invite_link
+            link_name = invite_link_obj.name or ""
+            referrer = await db.get_user_by_invite_link(invite_link_str)
+            if referrer:
+                referrer_id = referrer.user_id
+            elif link_name.startswith("ref_") and link_name[4:].isdigit():
+                referrer_id = int(link_name[4:])
+
+        # Fallback: Check if user started bot via referral link before joining channel
+        if not referrer_id:
+            pending_ref_id = await db.get_pending_referrer(joining_user.id)
+            if pending_ref_id:
+                referrer_id = pending_ref_id
+                invite_link_str = f"bot_deep_link_{referrer_id}"
+                await db.clear_pending_referrer(joining_user.id)
+                logger.info(
+                    f"Auto-detected pending referral: User {joining_user.id} -> Referrer {referrer_id}"
+                )
 
         if not referrer_id:
-            logger.warning(
-                f"No referrer found for invite link: {invite_link_str} (name: {link_name})"
+            logger.info(
+                f"User {joining_user.id} ({joining_user.first_name}) joined via direct public username or search without referral."
             )
             return
 
@@ -75,7 +80,7 @@ async def handle_channel_chat_member_update(event: ChatMemberUpdated, bot: Bot):
         credited = await db.record_referral(
             referrer_id=referrer_id,
             referred_user_id=joining_user.id,
-            invite_link=invite_link_str,
+            invite_link=invite_link_str or f"ref_{referrer_id}",
         )
 
         if credited:
@@ -146,43 +151,50 @@ async def handle_channel_chat_member_update(event: ChatMemberUpdated, bot: Bot):
 @router.chat_join_request()
 async def handle_chat_join_request(join_req: ChatJoinRequest, bot: Bot):
     """
-    Listens to ChatJoinRequest events if the channel has join request approval mode.
+    Listens to ChatJoinRequest events from direct channel invite links (t.me/+...).
     Auto-approves and credits the referrer in real-time.
     """
     user = join_req.from_user
     invite_link_obj = join_req.invite_link
 
+    invite_link_str = invite_link_obj.invite_link if invite_link_obj else "None"
+    link_name = invite_link_obj.name or "" if invite_link_obj else ""
+
     logger.info(
-        f"[JoinRequestEvent] User: {user.id} ({user.first_name}) | "
-        f"InviteLink: {invite_link_obj.invite_link if invite_link_obj else 'None'}"
+        f"[JoinRequestEvent] User: {user.id} ({user.first_name}) | Link: {invite_link_str} | Name: {link_name}"
     )
 
-    # Auto-approve user into the channel
+    # 1. Auto-approve user into the channel immediately
     try:
         await bot.approve_chat_join_request(
             chat_id=join_req.chat.id,
-            user_chat_id=user.id,
+            user_id=user.id,
         )
+        logger.info(f"Auto-approved join request for user {user.id} in chat {join_req.chat.id}")
     except Exception as e:
         logger.warning(f"Failed to auto-approve join request for {user.id}: {e}")
 
     if not invite_link_obj:
+        logger.warning(f"Join request from user {user.id} has no invite_link attached.")
         return
 
-    invite_link_str = invite_link_obj.invite_link
-    link_name = invite_link_obj.name or ""
-
-    referrer = await db.get_user_by_invite_link(invite_link_str)
+    # 2. Identify referrer by link name (ref_<user_id>) or exact DB link match
     referrer_id = None
-
-    if referrer:
-        referrer_id = referrer.user_id
-    elif link_name.startswith("ref_") and link_name[4:].isdigit():
+    if link_name.startswith("ref_") and link_name[4:].isdigit():
         referrer_id = int(link_name[4:])
+    
+    if not referrer_id:
+        referrer = await db.get_user_by_invite_link(invite_link_str)
+        if referrer:
+            referrer_id = referrer.user_id
 
     if not referrer_id:
+        logger.warning(
+            f"No referrer found for join request link: {invite_link_str} (name: {link_name})"
+        )
         return
 
+    # 3. Credit referral to inviter (1 credit per lifetime account, no self-referral)
     credited = await db.record_referral(
         referrer_id=referrer_id,
         referred_user_id=user.id,
@@ -190,6 +202,9 @@ async def handle_chat_join_request(join_req: ChatJoinRequest, bot: Bot):
     )
 
     if credited:
+        logger.info(
+            f"🎉 Direct Channel Join Referral SUCCESS: User {user.id} credited to Referrer {referrer_id}"
+        )
         active_points, total_joins, rank = await db.get_user_stats(referrer_id)
         try:
             await bot.send_message(
@@ -201,5 +216,11 @@ async def handle_chat_join_request(join_req: ChatJoinRequest, bot: Bot):
                 ),
                 parse_mode=ParseMode.HTML,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                f"Could not send join notification to referrer {referrer_id}: {e}"
+            )
+    else:
+        logger.info(
+            f"Join request user {user.id} already credited previously or self-referral."
+        )

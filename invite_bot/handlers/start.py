@@ -13,9 +13,10 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
 )
-from aiogram.enums import ParseMode, ChatMemberStatus
+from aiogram.enums import ParseMode
 from database import db
-from config import TARGET_CHANNEL, TARGET_CHANNEL_ID
+from config import TARGET_CHANNEL
+from handlers.utils import check_channel_membership
 import messages as msg
 
 logger = logging.getLogger(__name__)
@@ -26,12 +27,19 @@ def get_main_menu_keyboard() -> ReplyKeyboardMarkup:
     """Persistent bottom reply keyboard for easy 1-tap navigation."""
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=msg.BTN_GET_LINK)],
+            [KeyboardButton(text=msg.BTN_RESOURCES)],
             [
-                KeyboardButton(text=msg.BTN_MY_STATS),
+                KeyboardButton(text=msg.BTN_UNIVERSITIES),
+                KeyboardButton(text=msg.BTN_GPA_CALC),
+            ],
+            [
+                KeyboardButton(text=msg.BTN_GET_LINK),
                 KeyboardButton(text=msg.BTN_LEADERBOARD),
             ],
-            [KeyboardButton(text=msg.BTN_RULES)],
+            [
+                KeyboardButton(text=msg.BTN_MY_STATS),
+                KeyboardButton(text=msg.BTN_RULES),
+            ],
         ],
         resize_keyboard=True,
         persistent=True,
@@ -58,20 +66,7 @@ def get_channel_join_markup(referrer_id: int) -> InlineKeyboardMarkup:
     )
 
 
-async def check_channel_membership(bot: Bot, user_id: int) -> bool:
-    """Check if user is currently a member of the target channel."""
-    try:
-        member = await bot.get_chat_member(
-            chat_id=TARGET_CHANNEL_ID, user_id=user_id
-        )
-        return member.status in (
-            ChatMemberStatus.MEMBER,
-            ChatMemberStatus.ADMINISTRATOR,
-            ChatMemberStatus.CREATOR,
-        )
-    except Exception as e:
-        logger.warning(f"Failed to check channel membership for {user_id}: {e}")
-        return False
+# check_channel_membership imported from handlers.utils
 
 
 async def credit_and_notify_referrer(
@@ -135,6 +130,7 @@ async def handle_start(message: Message, bot: Bot):
         is_member = await check_channel_membership(bot, user.id)
         if is_member:
             # Already in channel -> credit immediately
+            await db.clear_pending_referrer(user.id)
             await credit_and_notify_referrer(bot, referrer_id, user)
             await message.answer(
                 f"✅ <b>ተሳትፎዎ ተረጋግጧል!</b>\n\n"
@@ -145,6 +141,9 @@ async def handle_start(message: Message, bot: Bot):
             )
             return
         else:
+            # Store pending referral so when user joins channel, tracker auto-credits referrer
+            await db.set_pending_referrer(user.id, referrer_id)
+
             # Prompt to join channel first
             await message.answer(
                 f"👋 <b>እንኳን ወደ {msg.COMPETITION_TITLE} በደህና መጡ!</b>\n"
@@ -190,6 +189,7 @@ async def handle_verify_callback(callback: CallbackQuery, bot: Bot):
 
     # Successfully verified
     await callback.answer("✅ ተሳትፎዎ ተረጋግጧል! እናመሰግናለን።", show_alert=True)
+    await db.clear_pending_referrer(user.id)
     await credit_and_notify_referrer(bot, referrer_id, user)
 
     try:
