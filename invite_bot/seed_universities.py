@@ -485,20 +485,30 @@ UNIVERSITIES_DATA = [
             "📍 <b>አድራሻ:</b> ደብረ ብርሃን፣ ሰሜን ሸዋ፣ አማራ (ከአዲስ አበባ 130 ኪ.ሜ)\n"
             "⛅ <b>የአየር ሁኔታ:</b> እጅግ ከፍተኛ ብርድ (ደጋ) — ወፍራም ብርድልብስና ጃኬት የግድ ነው!\n"
             "🏢 <b>ካምፓሶች:</b> Main Campus እና ዳግማዊ ሚኒሊክ ካምፓስ (መሀል ከተማ)\n\n"
-            "📋 <b>�            "🏢 <b>የዩኒቨርሲቲው 2 ዋና ዋና ካምፓሶች (Campuses):</b>\n\n"
-            "🏫 <b>1. መርሳ ካምፓስ (Mersa Campus — Agriculture):</b>\n"
-            "  • ከወልዲያ ከተማ አቅራቢያ በመርሳ ከተማ የሚገኝ የግብርና ትምህርት ማዕከል። 🌱\n"
-            "  • Plant Science | Animal Science | Horticulture | Agribusiness | Agricultural Economics | NRM\n"
-            "  • Veterinary Science & Animal Health 🐄\n\n"
-            "🏫 <b>2. ወልዲያ ዋናው ግቢ (Woldiya Main Campus):</b>\n"
-            "  • <b>Software Engineering 💻</b> \n"
-            "  • Computer Science 💻 | Information Technology (IT)\n"
-            "  • Electrical & Computer Engineering ⚡ | Mechanical Engineering ⚙️\n"
-            "  • Civil Engineering 🏗️ | Chemical Engineering 🧪 | COTM (Construction Technology & Management)\n"
-            "  • Natural Sciences: Biology, Chemistry, Mathematics, Physics, Statistics\n"
-            "  • Business & Economics: Accounting & Finance 📊, Economics 💰, Management, Marketing Management\n"
-            "  • Social Sciences & Humanities: Geography, History, English, Civics, Educational Planning (EdPM)\n"
-            "  • School of Law ⚖️ (Law - LL.B)\n\n"Science\n"
+            "📋 <b>የካምፓሶች እና የዲፓርትመንቶች ዝርዝር:</b>\n\n"
+            "⚙️ <b>Technology College:</b>\n"
+            "  • Computer Science\n"
+            "  • Information System (IS)\n"
+            "  • Information Technology (IT)\n"
+            "  • Software Engineering\n"
+            "  • Electrical & Computer Engineering\n"
+            "  • Mechanical Engineering\n"
+            "  • Civil Engineering\n"
+            "  • COTM (Construction Technology & Management)\n"
+            "  • Industrial Engineering\n"
+            "  • Chemical Engineering\n"
+            "  • Food Engineering\n"
+            "  • Hydroelectric Engineering\n"
+            "  • Surveying Engineering\n\n"
+            "🩺 <b>ዳግማዊ ሚኒሊክ ካምፓስ (Health Sciences):</b>\n"
+            "  • Medicine (MD)\n"
+            "  • Public Health Officer (HO)\n"
+            "  • Anesthesia\n"
+            "  • Medical Laboratory\n"
+            "  • Nursing & Midwifery\n\n"
+            "🌾 <b>Agriculture College:</b>\n"
+            "  • Agro Economics\n"
+            "  • Animal Science\n"
             "  • Plant Science\n"
             "  • Horticulture\n"
             "  • Natural Resource Management (NRM)\n\n"
@@ -595,33 +605,6 @@ UNIVERSITIES_DATA = [
             "👥 <b>Telegram Channel:</b> @freshminds_academy"
         ),
         17,
-    ),
-    (
-        "Selale University",
-        (
-            "🏛️ <b>Selale University — ሰላሌ ዩኒቨርሲቲ</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "📍 <b>አድራሻ:</b> ፍቼ ከተማ፣ ሰሜን ሸዋ፣ ኦሮሚያ (ከአዲስ አበባ 112 ኪ.ሜ)\n"
-            "⛅ <b>የአየር ሁኔታ:</b> ወይናደጋ (ከህዳር እስከ ጥር መጠነኛ ቅዝቃዜ)\n"
-            "🏢 <b>ካምፓሶች:</b> አበበች ጎበና እና ጀነራል ታደሰ ብሩ\n\n"
-            "📋 <b>የካምፓሶች እና የዲፓርትመንቶች ዝርዝር:</b>\n\n"
-            "🩺 <b>አበበች ጎበና ካምፓስ (Health Sciences):</b>\n"
-            "  • Medicine (MD)\n"
-            "  • Public Health Officer (HO)\n"
-            "  • Nursing\n"
-            "  • Midwifery\n\n"
-            "📚 <b>ጀነራል ታደሰ ብሩ ካምፓስ (Social Sciences & Business):</b>\n"
-            "  • School of Law\n"
-            "  • Economics\n"
-            "  • Accounting & Finance\n"
-            "  • Sociology\n"
-            "  • Marketing Management\n"
-            "  • Management\n"
-            "  • Geography\n"
-            "  • Statistics\n\n"
-            "👥 <b>Telegram Channel:</b> @freshminds_academy"
-        ),
-        18,
     ),
     (
         "Aksum University",
@@ -733,79 +716,6 @@ UNIVERSITIES_DATA = [
             "👥 <b>Telegram Channel:</b> @freshminds_academy"
         ),
         22,
-    ),
-    (
-        "Werabe University",
-        (
-            "🏛️ <b>Werabe University — ወራቤ ዩኒቨርሲቲ</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "📍 <b>አድራሻ:</b> ወራቤ ከተማ፣ ስልጤ ዞን፣ ማዕከላዊ/ደቡብ ኢትዮጵያ\n"
-            "⛅ <b>የአየር ሁኔታ:</b> መካከለኛ ወይናደጋ አየር (ለኑሮ እጅግ ተስማሚ)\n"
-            "🏢 <b>ካምፓስ:</b> Main Campus\n\n"
-            "📋 <b>የትምህርት ክፍሎች (Departments):</b>\n\n"
-            "🔬 <b>Natural & Applied Sciences:</b>\n"
-            "  • Computer Science\n"
-            "  • Applied Science\n"
-            "  • Agriculture\n\n"
-            "🩺 <b>Health Sciences:</b>\n"
-            "  • Midwifery\n"
-            "  • Nursing\n"
-            "  • Pharmacy\n\n"
-            "📚 <b>Social & Business:</b>\n"
-            "  • Business & Economics\n"
-            "  • Social Sciences\n\n"
-            "👥 <b>Telegram Channel:</b> @freshminds_academy"
-        ),
-        23,
-    ),
-    (
-        "Jinka University",
-        (
-            "🏛️ <b>Jinka University — ጂንካ ዩኒቨርሲቲ</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "📍 <b>አድራሻ:</b> ጂንካ ከተማ፣ ደቡብ ኦሞ (ከአዲስ አበባ 700 ኪ.ሜ)\n"
-            "⛅ <b>የአየር ሁኔታ:</b> በመጀመሪያዎቹ ወራት መጠነኛ ቅዝቃዜ፣ ሌላውን ጊዜ ምቹና ሞቃታማ\n"
-            "🏢 <b>ካምፓስ:</b> Main Campus (በቅርብ የተገነባ ውብ ግቢ)\n\n"
-            "📋 <b>የትምህርት ክፍሎች (Departments):</b>\n\n"
-            "🌾 <b>Natural Sciences:</b>\n"
-            "  • Agriculture\n"
-            "  • Agro Economics\n"
-            "  • Computer Science (IT)\n"
-            "  • Computational Sciences\n"
-            "  • Sport Science\n\n"
-            "📚 <b>Social Sciences:</b>\n"
-            "  • School of Law\n"
-            "  • Accounting & Finance\n"
-            "  • Management\n"
-            "  • Economics\n"
-            "  • Social Sciences\n\n"
-            "👥 <b>Telegram Channel:</b> @freshminds_academy"
-        ),
-        24,
-    ),
-    (
-        "Woldia University (WDU)",
-        (
-            "📣 <b>Woldia University (WDU) — ወልዲያ ዩኒቨርሲቲ</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "📍 <b>አድራሻ:</b> ወልዲያ እና መርሳ፣ ሰሜን ወሎ ዞን፣ አማራ ክልል\n"
-            "⛅ <b>የአየር ሁኔታ:</b> ወልዲያ ወይናደጋ/መጠነኛ ሞቃታማ፤ መርሳ ደግሞ ሞቃታማና ተስማሚ አየር አላት።\n\n"
-            "🏢 <b>የዩኒቨርሲቲው 2 ዋና ዋና ካምፓሶች (Campuses):</b>\n\n"
-            "🏫 <b>1. መርሳ ቴክኖሎጂ ኢንስቲትዩት (Mersa Institute of Technology Campus):</b>\n"
-            "  • ከወልዲያ ከተማ አቅራቢያ በመርሳ ከተማ የሚገኝ የቴክኖሎጂና ምህንድስና ማዕከል።\n"
-            "  • <b>Software Engineering 💻</b> (በስፋት የሚሰጥና የሚፈለግ የልህቀት መስክ!)\n"
-            "  • Computer Science 💻 | Information Technology (IT)\n"
-            "  • Electrical & Computer Engineering ⚡ | Mechanical Engineering ⚙️\n"
-            "  • Civil Engineering 🏗️ | Chemical Engineering 🧪 | COTM (Construction Technology & Management)\n"
-            "  • College of Agriculture 🌱 (Plant Science, Animal Science, Horticulture, Agricultural Economics)\n\n"
-            "🏫 <b>2. ወልዲያ ዋናው ግቢ (Woldiya Main Campus):</b>\n"
-            "  • Natural & Computational Sciences: Biology, Chemistry, Mathematics, Physics, Statistics።\n"
-            "  • Business & Economics: Accounting & Finance 📊, Economics 💰, Management, Marketing Management።\n"
-            "  • Social Sciences & Humanities: Geography, History, English, Civics, Educational Planning (EdPM)።\n"
-            "  • School of Law ⚖️ (Law - LL.B)።\n\n"
-            "👥 <b>Telegram Channel:</b> @freshminds_academy"
-        ),
-        25,
     ),
     (
         "Injibara University",

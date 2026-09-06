@@ -556,11 +556,11 @@ class Database:
 
     # ── Universities CRUD ────────────────────────────────────────────────────
     async def get_all_universities(self) -> list[UniversityRecord]:
-        """Fetch all universities ordered by sort_order and name."""
+        """Fetch all universities ordered alphabetically by name."""
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
-                "SELECT id, name, about_text, sort_order FROM universities ORDER BY sort_order ASC, name ASC"
+                "SELECT id, name, about_text, sort_order FROM universities ORDER BY name ASC"
             )
             rows = await cursor.fetchall()
             return [

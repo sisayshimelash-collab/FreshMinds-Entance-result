@@ -1,6 +1,7 @@
 import asyncio
 import html
 import logging
+import re
 from aiogram import Router, Bot, F
 from aiogram.filters import Command
 from aiogram.types import (
@@ -533,6 +534,7 @@ async def cb_admin_unis_menu(callback: CallbackQuery):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="➕ Add New University", callback_data="admin_add_uni")],
+            [InlineKeyboardButton(text="📋 View & Copy Description", callback_data="admin_copy_uni_list")],
             [InlineKeyboardButton(text="✏️ Edit University", callback_data="admin_edit_uni_list")],
             [InlineKeyboardButton(text="🗑️ Delete a University", callback_data="admin_del_uni_list")],
             [InlineKeyboardButton(text="🔙 Back to Admin Menu", callback_data="admin_back_main")],
@@ -578,6 +580,19 @@ async def state_admin_uni_name(message: Message, state: FSMContext):
     )
 
 
+def _extract_admin_formatted_text(message: Message) -> str:
+    """
+    Extract formatted text preserving both:
+    1) Raw HTML tags if the admin pasted raw HTML text (<b>, <i>, etc.)
+    2) Telegram client rich-text entities (converted via message.html_text)
+    """
+    raw_text = message.text or ""
+    has_html_tags = bool(re.search(r"<\/?(b|i|u|s|code|pre|a|blockquote)\b", raw_text, re.IGNORECASE))
+    if has_html_tags and not message.entities:
+        return raw_text
+    return getattr(message, "html_text", None) or raw_text
+
+
 @router.message(AdminUniState.waiting_for_about)
 async def state_admin_uni_about(message: Message, state: FSMContext):
     """Receive university about text and save to DB."""
@@ -585,8 +600,7 @@ async def state_admin_uni_about(message: Message, state: FSMContext):
         return
     data = await state.get_data()
     name = data["name"]
-    # Extract HTML or formatted text from message
-    about_text = message.html_text if hasattr(message, "html_text") else message.text
+    about_text = _extract_admin_formatted_text(message)
 
     await db.add_university(name, about_text)
     await state.clear()
@@ -642,6 +656,81 @@ async def cb_admin_del_uni_do(callback: CallbackQuery):
     await cb_admin_unis_menu(callback)
 
 
+# ── View & Copy University Description Flow ───────────────────────────
+
+@router.callback_query(F.data == "admin_copy_uni_list")
+async def cb_admin_copy_uni_list(callback: CallbackQuery):
+    """List all universities for viewing and copying full description."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    universities = await db.get_all_universities()
+
+    if not universities:
+        await callback.message.answer("<i>No universities found.</i>", parse_mode=ParseMode.HTML)
+        return
+
+    keyboard = []
+    for u in universities:
+        keyboard.append([
+            InlineKeyboardButton(
+                text=f"📋 {u.name}",
+                callback_data=f"admin_copy_uni_do_{u.id}",
+            )
+        ])
+    keyboard.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_unis_menu")])
+
+    await callback.message.answer(
+        "📋 <b>Select a University to View & Copy Full Description:</b>\n"
+        "<i>Tap any university below to get its full description formatted in a 1-tap copy box.</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+    )
+
+
+@router.callback_query(F.data.startswith("admin_copy_uni_do_"))
+async def cb_admin_copy_uni_do(callback: CallbackQuery):
+    """Send the full university description in a 1-tap copyable code box."""
+    if not is_admin(callback.from_user.id):
+        return
+    uni_id = int(callback.data.partition("admin_copy_uni_do_")[2])
+    uni = await db.get_university_by_id(uni_id)
+    if not uni:
+        await callback.answer("⚠️ University not found!", show_alert=True)
+        return
+    await callback.answer()
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"✏️ Edit {uni.name}", callback_data=f"admin_edit_uni_do_{uni.id}")],
+            [InlineKeyboardButton(text="📋 Copy Another University", callback_data="admin_copy_uni_list")],
+            [InlineKeyboardButton(text="🏛️ Universities Menu", callback_data="admin_unis_menu")],
+        ]
+    )
+
+    header = (
+        f"🏛️ <b>{html.escape(uni.name)} — Full Description</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "👇 <b>Tap the box below to copy the complete text (1-tap copy):</b>\n\n"
+    )
+    copy_box = f"<pre><code>{html.escape(uni.about_text)}</code></pre>"
+    full_msg = header + copy_box
+
+    if len(full_msg) <= 4000:
+        await callback.message.answer(
+            full_msg,
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+        )
+    else:
+        await callback.message.answer(header, parse_mode=ParseMode.HTML)
+        await callback.message.answer(
+            copy_box,
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+        )
+
+
 # ── Edit University Flow ──────────────────────────────────────────────
 
 @router.callback_query(F.data == "admin_edit_uni_list")
@@ -668,7 +757,7 @@ async def cb_admin_edit_uni_list(callback: CallbackQuery):
 
     await callback.message.answer(
         "✏️ <b>Select a University to Edit:</b>\n"
-        "<i>You will be asked to send the new About text for the selected university.</i>",
+        "<i>You will receive the full current text in a 1-tap copy box to easily copy, edit, and send back.</i>",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
     )
@@ -676,7 +765,7 @@ async def cb_admin_edit_uni_list(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("admin_edit_uni_do_"))
 async def cb_admin_edit_uni_do(callback: CallbackQuery, state: FSMContext):
-    """Show current about text preview and prompt admin to send new text."""
+    """Show full copyable about text and prompt admin to send new text."""
     if not is_admin(callback.from_user.id):
         return
     uni_id = int(callback.data.partition("admin_edit_uni_do_")[2])
@@ -689,19 +778,22 @@ async def cb_admin_edit_uni_do(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdminUniEditState.waiting_for_new_about)
     await callback.answer()
 
-    # Show a trimmed preview of the current text so admin knows what they are replacing
-    preview = uni.about_text[:600] + ("..." if len(uni.about_text) > 600 else "")
-    await callback.message.answer(
+    header = (
         f"✏️ <b>Editing: {html.escape(uni.name)}</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "<b>📄 Current About Text (preview):</b>\n"
-        f"<blockquote>{html.escape(preview)}</blockquote>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n\n"
-        "📝 <b>Send the complete new About text now.</b>\n"
-        "<i>Tip: Copy the text above, paste it into your message editor, make your edits, then send.</i>\n\n"
-        "Type /cancel to abort without saving.",
-        parse_mode=ParseMode.HTML,
+        "📋 <b>Current Full Description:</b>\n"
+        "<i>👇 Tap the code box below to copy the complete text to your clipboard. Then paste it into your chat box, edit whatever you need, and send it back!</i>\n\n"
     )
+    copy_box = f"<pre><code>{html.escape(uni.about_text)}</code></pre>"
+    footer = "\n\n📝 <i>Send the new text when ready, or type /cancel to abort without saving.</i>"
+
+    full_msg = header + copy_box + footer
+    if len(full_msg) <= 4000:
+        await callback.message.answer(full_msg, parse_mode=ParseMode.HTML)
+    else:
+        await callback.message.answer(header, parse_mode=ParseMode.HTML)
+        await callback.message.answer(copy_box, parse_mode=ParseMode.HTML)
+        await callback.message.answer(footer, parse_mode=ParseMode.HTML)
 
 
 @router.message(AdminUniEditState.waiting_for_new_about)
@@ -713,8 +805,7 @@ async def state_admin_uni_edit_about(message: Message, state: FSMContext):
     uni_id = data["edit_uni_id"]
     uni_name = data["edit_uni_name"]
 
-    # Prefer html_text to preserve bold/italic formatting the admin may send
-    new_about = message.html_text if hasattr(message, "html_text") and message.html_text else message.text
+    new_about = _extract_admin_formatted_text(message)
 
     updated = await db.update_university(uni_id, new_about)
     await state.clear()
