@@ -25,7 +25,7 @@ BTN_RULES = "🎁 ሽልማቶችና ህጎች (Prizes & Rules)"
 WELCOME_TEXT = (
     f"🎉 <b>እንኳን ወደ FreshMinds Academy በደህና መጡ!</b> 🇪🇹\n"
     "━━━━━━━━━━━━━━━━━━━━\n"
-    "ለ 2018 ዓ.ም የ Freshman ዩኒቨርሲቲ ተማሪዎች የተዘጋጀ ሁለገብ የትምህርትና መረጃ ቦት:\n\n"
+    "ለ 2019 ዓ.ም የ Freshman ዩኒቨርሲቲ ተማሪዎች የተዘጋጀ ሁለገብ የትምህርትና መረጃ ቦት:\n\n"
     "📚 <b>የኮርስ ማቴሪያሎች:</b> የ 1ኛ አመት ሞጁሎች፣ የማጠቃለያ ኖቶችና ያለፉ ፈተናዎች\n"
     "🏛️ <b>የዩኒቨርሲቲዎች መረጃ:</b> የኢትዮጵያ ዩኒቨርሲቲዎች አጠቃላይ መረጃና የካምፓስ ህይወት\n"
     "🧮 <b>GPA ማስያ:</b> የ 1st Semester ውጤት በቀላሉ የሚያሰሉበት ልዩ ካልኩሌተር\n"
@@ -125,7 +125,7 @@ def format_promotional_post(invite_link: str) -> str:
     forward to Telegram groups, batch channels, or friends.
     """
     return (
-        "🎓 <b>ለ 2018 ዓ.ም የዩኒቨርሲቲ Freshman ተማሪዎች በሙሉ!</b> 🇪🇹\n\n"
+        "🎓 <b>ለ 2019 ዓ.ም የዩኒቨርሲቲ Freshman ተማሪዎች በሙሉ!</b> 🇪🇹\n\n"
         "ለ 1ኛ አመት (Freshman) የዩኒቨርሲቲ ህይወትህ/ሽ በሚገባ ተዘጋጅተሃል/ሻል? "
         "<b>FreshMinds Academy</b> ለተማሪዎች የተዘጋጀ ልዩ የትምህርት ማዕከል ነው!\n\n"
         "📌 <b>በቻናላችን ምን ያገኛሉ?</b>\n"

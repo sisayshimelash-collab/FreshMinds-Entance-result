@@ -22,7 +22,7 @@ router = Router()
 def get_share_keyboard(invite_link: str) -> InlineKeyboardMarkup:
     """Inline button that opens Telegram share picker with pre-filled promotional message."""
     share_text = (
-        "🎓 ለ 2018 ዓ.ም የ Freshman ተማሪዎች በሙሉ! ነፃ የቪዲዮ ኮርሶች እና የፈተና ሞዴሎች በ FreshMinds Academy ያግኙ። አሁኑኑ ይቀላቀሉ👇"
+        "🎓 ለ 2019 ዓ.ም የ Freshman ተማሪዎች በሙሉ! ነፃ የቪዲዮ ኮርሶች እና የፈተና ሞዴሎች በ FreshMinds Academy ያግኙ። አሁኑኑ ይቀላቀሉ👇"
     )
     encoded_text = urllib.parse.quote(share_text)
     encoded_url = urllib.parse.quote(invite_link)

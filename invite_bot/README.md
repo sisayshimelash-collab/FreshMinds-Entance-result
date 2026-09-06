@@ -7,7 +7,7 @@ An automated Telegram referral bot that generates **unique direct channel invite
 ## ✨ Features
 
 - **Direct Channel Invite Links**: Friends click and join `@freshminds_academy` directly without touching the bot.
-- **Ready-to-Forward Promotional Post**: Generates an attractive, formatted Amharic marketing post targeting 2018 E.C. freshman students with embedded unique join links.
+- **Ready-to-Forward Promotional Post**: Generates an attractive, formatted Amharic marketing post targeting 2019 E.C. freshman students with embedded unique join links.
 - **1-Tap Copyable URL & Share Button**: Monospace link block + `[ 🚀 ለጓደኞች አጋራ ]` button.
 - **Username-Free Support**: 100% functional for students with or without a `@username`.
 - **Instant Join & Leave Notifications**: Pings the referrer immediately when someone joins (`+1 point`) or leaves (`-1 point`).
@@ -33,7 +33,7 @@ Create a `.env` file in the `invite_bot/` directory:
 BOT_TOKEN=123456789:ABCDefghIJKlmnoPQRstuvWXyz
 TARGET_CHANNEL=freshminds_academy
 ADMIN_IDS=12345678,98765432
-COMPETITION_TITLE=የ 2018 ዓ.ም የ Freshman ሳምንታዊ የመጋበዝ ውድድር
+COMPETITION_TITLE=የ 2019 ዓ.ም የ Freshman ሳምንታዊ የመጋበዝ ውድድር
 PRIZE_1ST=3000 ብር + የ Freshman VIP ኮርሶች
 PRIZE_2ND=1500 ብር + የ Freshman VIP ኮርሶች
 PRIZE_3RD=500 ብር + የ Freshman VIP ኮርሶች

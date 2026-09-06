@@ -39,7 +39,7 @@ def is_admin(user_id: int) -> bool:
 
 # Competition Information (Top 4 Winners)
 COMPETITION_TITLE: str = os.getenv(
-    "COMPETITION_TITLE", "የ 2018 ዓ.ም የ Freshman ሳምንታዊ የመጋበዝ ውድድር"
+    "COMPETITION_TITLE", "የ 2019 ዓ.ም የ Freshman ሳምንታዊ የመጋበዝ ውድድር"
 )
 PRIZE_1ST: str = os.getenv("PRIZE_1ST", "100 ብር + የ Freshman VIP ኮርሶች")
 PRIZE_2ND: str = os.getenv("PRIZE_2ND", "የ Freshman VIP ኮርሶች")
