@@ -36,7 +36,7 @@ def build_universities_list_keyboard(universities: list) -> InlineKeyboardMarkup
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-async def show_universities_list(target: Message | CallbackQuery):
+async def show_universities_list(message: Message, edit: bool = False):
     """Renders the university directory list."""
     universities = await db.get_all_universities()
     if not universities:
@@ -45,10 +45,10 @@ async def show_universities_list(target: Message | CallbackQuery):
             "━━━━━━━━━━━━━━━━━━━━\n"
             "<i>ይቅርታ፣ እስካሁን ምንም ዩኒቨርሲቲ አልተመዘገበም።</i>"
         )
-        if isinstance(target, CallbackQuery):
-            await target.message.edit_text(text, parse_mode=ParseMode.HTML)
+        if edit:
+            await message.edit_text(text, parse_mode=ParseMode.HTML)
         else:
-            await target.answer(text, parse_mode=ParseMode.HTML)
+            await message.answer(text, parse_mode=ParseMode.HTML)
         return
 
     text = (
@@ -58,15 +58,15 @@ async def show_universities_list(target: Message | CallbackQuery):
         "የሚፈልጉትን ዩኒቨርሲቲ ይጫኑ:\n\n"
         f"📍 የተመዘገቡ ዩኒቨርሲቲዎች: <b>{len(universities)}</b>"
     )
-    if isinstance(target, CallbackQuery):
-        await target.message.edit_text(
+    if edit:
+        await message.edit_text(
             text,
             parse_mode=ParseMode.HTML,
             reply_markup=build_universities_list_keyboard(universities),
             disable_web_page_preview=True,
         )
     else:
-        await target.answer(
+        await message.answer(
             text,
             parse_mode=ParseMode.HTML,
             reply_markup=build_universities_list_keyboard(universities),
@@ -82,7 +82,7 @@ async def handle_universities_list(message: Message, bot: Bot):
     if not await check_and_credit_membership(bot, message.from_user):
         await send_feature_lock_message(message, "🏛️ የዩኒቨርሲቲዎች መረጃን", "retry_feature_universities")
         return
-    await show_universities_list(message)
+    await show_universities_list(message, edit=False)
 
 
 @router.callback_query(F.data == "retry_feature_universities")
@@ -92,12 +92,16 @@ async def handle_retry_universities(callback: CallbackQuery, bot: Bot):
         await callback.answer("⚠️ እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ!", show_alert=True)
         return
     await callback.answer("✅ ተረጋግጧል!", show_alert=False)
-    await show_universities_list(callback)
+    if isinstance(callback.message, Message):
+        await show_universities_list(callback.message, edit=True)
 
 
 @router.callback_query(F.data.startswith("uni_view_"))
 async def handle_university_view(callback: CallbackQuery, bot: Bot):
     """Displays the complete formatted About card for the selected university with channel membership check."""
+    if not isinstance(callback.message, Message):
+        return
+
     uni_id = int(callback.data.partition("uni_view_")[2])
     uni = await db.get_university_by_id(uni_id)
 
@@ -165,6 +169,9 @@ async def handle_university_view(callback: CallbackQuery, bot: Bot):
 @router.callback_query(F.data == "uni_list_back")
 async def handle_universities_back(callback: CallbackQuery):
     """Returns to the university list view."""
+    if not isinstance(callback.message, Message):
+        return
+
     await callback.answer()
     universities = await db.get_all_universities()
 
