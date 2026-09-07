@@ -13,6 +13,7 @@ from aiogram.types import (
 )
 from aiogram.enums import ParseMode
 from database import db
+from config import TARGET_CHANNEL
 from handlers.utils import (
     check_channel_membership,
     check_and_credit_membership,
