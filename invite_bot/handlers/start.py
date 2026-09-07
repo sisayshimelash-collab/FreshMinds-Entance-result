@@ -40,9 +40,26 @@ def get_main_menu_keyboard() -> ReplyKeyboardMarkup:
                 KeyboardButton(text=msg.BTN_MY_STATS),
                 KeyboardButton(text=msg.BTN_RULES),
             ],
+            [
+                KeyboardButton(text=msg.BTN_CHANNEL),
+            ],
         ],
         resize_keyboard=True,
         persistent=True,
+    )
+
+
+def get_welcome_join_inline_markup() -> InlineKeyboardMarkup:
+    """Inline button attached to the welcome message to directly open the channel."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"📢 @{TARGET_CHANNEL} ቻናል ተቀላቀል (Join Channel)",
+                    url=f"https://t.me/{TARGET_CHANNEL}",
+                )
+            ]
+        ]
     )
 
 
@@ -160,8 +177,13 @@ async def handle_start(message: Message, bot: Bot):
     await message.answer(
         msg.WELCOME_TEXT,
         parse_mode=ParseMode.HTML,
-        reply_markup=get_main_menu_keyboard(),
+        reply_markup=get_welcome_join_inline_markup(),
         disable_web_page_preview=True,
+    )
+    await message.answer(
+        "👇 <b>ከታች ያሉትን የቦቱን አገልግሎቶች ይጠቀሙ:</b>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=get_main_menu_keyboard(),
     )
 
 
@@ -205,8 +227,13 @@ async def handle_verify_callback(callback: CallbackQuery, bot: Bot):
     await callback.message.answer(
         msg.WELCOME_TEXT,
         parse_mode=ParseMode.HTML,
-        reply_markup=get_main_menu_keyboard(),
+        reply_markup=get_welcome_join_inline_markup(),
         disable_web_page_preview=True,
+    )
+    await callback.message.answer(
+        "👇 <b>ከታች ያሉትን የቦቱን አገልግሎቶች ይጠቀሙ:</b>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=get_main_menu_keyboard(),
     )
 
 
@@ -216,6 +243,37 @@ async def handle_help(message: Message):
     await message.answer(
         msg.WELCOME_TEXT,
         parse_mode=ParseMode.HTML,
+        reply_markup=get_welcome_join_inline_markup(),
+        disable_web_page_preview=True,
+    )
+    await message.answer(
+        "👇 <b>ከታች ያሉትን የቦቱን አገልግሎቶች ይጠቀሙ:</b>",
+        parse_mode=ParseMode.HTML,
         reply_markup=get_main_menu_keyboard(),
+    )
+
+
+@router.message(F.text == msg.BTN_CHANNEL)
+async def handle_channel_button(message: Message):
+    """Provides direct channel link and join button from the main menu."""
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"📢 @{TARGET_CHANNEL} ቻናል ተቀላቀል (Join Channel)",
+                    url=f"https://t.me/{TARGET_CHANNEL}",
+                )
+            ]
+        ]
+    )
+    await message.answer(
+        f"📢 <b>FreshMinds Academy Official የቴሌግራም ቻናል:</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"👉 <b>@{TARGET_CHANNEL}</b>\n\n"
+        "ሁሉንም አዳዲስ የ 2019 ዓ.ም የ Freshman ትምህርቶች፣ የቪዲዮ ኮርሶች፣ "
+        "የዩኒቨርሲቲ መረጃዎችና ማስታወቂያዎች በቻናላችን ያገኛሉ!\n\n"
+        "👇 ከታች ያለውን ሊንክ ተጭነው ቻናሉን ይቀላቀሉ:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
         disable_web_page_preview=True,
     )

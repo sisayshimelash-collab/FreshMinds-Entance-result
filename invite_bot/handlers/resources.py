@@ -2,6 +2,7 @@
 FreshMinds Course Resources & Materials Explorer — Modules, Notes & Exam Banks
 """
 
+import asyncio
 import logging
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
@@ -124,51 +125,123 @@ async def handle_course_view(callback: CallbackQuery):
 
 
 @router.callback_query(F.data.startswith("ccat_"))
-async def handle_course_category_view(callback: CallbackQuery):
-    """Displays materials available under a course category."""
-    # Use split("_", 2) then take [1] and [2] so category names with underscores work correctly.
+async def handle_course_category_view(callback: CallbackQuery, bot: Bot):
+    """Verifies channel membership and reveals all materials under the selected course category."""
     # Format: ccat_<course_id>_<category>
     _, course_id_str, category = callback.data.split("_", 2)
     course_id = int(course_id_str)
+    user_id = callback.from_user.id
 
     course = await db.get_course_by_id(course_id)
     cat_title = CATEGORY_NAMES.get(category, "ማቴሪያሎች")
+
+    if not course:
+        await callback.answer("⚠️ ኮርሱ አልተገኘም!", show_alert=True)
+        return
+
+    # Check Channel Membership (Force-Subscription to reveal materials)
+    is_member = await check_channel_membership(bot, user_id)
+    if not is_member:
+        await callback.answer("⚠️ እባክዎ መጀመሪያ ቻናላችንን ይቀላቀሉ!", show_alert=True)
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text=f"📢 @{TARGET_CHANNEL} ቻናል ተቀላቀል", url=f"https://t.me/{TARGET_CHANNEL}")],
+                [InlineKeyboardButton(text="🔓 ተቀላቅያለሁ (ሁሉንም ክፈት / Reveal)", callback_data=f"ccat_{course_id}_{category}")],
+                [InlineKeyboardButton(text="🔙 ወደ ማቴሪያል ምድቦች (Back)", callback_data=f"course_view_{course_id}")],
+            ]
+        )
+        await callback.message.edit_text(
+            f"🔒 <b>የ{course.name} ({cat_title}) ማቴሪያሎችን ለማግኘት:</b>\n\n"
+            f"እነዚህን ጠቃሚ ማቴሪያሎችና ፈተናዎች በነፃ ለማውረድ የ <b>@{TARGET_CHANNEL}</b> ቻናላችን አባል መሆን አለብዎት።\n\n"
+            f"1️⃣ ከታች ያለውን <b>'@{TARGET_CHANNEL} ቻናል ተቀላቀል'</b> ይጫኑ\n"
+            f"2️⃣ ቻናሉን ከተቀላቀሉ በኋላ <b>'ተቀላቅያለሁ (ሁሉንም ክፈት)'</b> የሚለውን ይጫኑ!",
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+            disable_web_page_preview=True,
+        )
+        return
+
+    await callback.answer("✨ ማቴሪያሎቹ በመከፈት ላይ ናቸው...", show_alert=False)
     materials = await db.get_materials_by_course(course_id, category)
+    # Reverse to deliver in chronological order (earliest uploaded first)
+    materials_ordered = list(reversed(materials))
 
-    await callback.answer()
-
-    keyboard = []
-    if materials:
-        for m in materials:
-            keyboard.append([
-                InlineKeyboardButton(text=f"📥 {m.title}", callback_data=f"mat_get_{m.id}")
-            ])
-    
-    keyboard.append([
-        InlineKeyboardButton(text="🔙 ወደ ማቴሪያል ምድቦች (Back)", callback_data=f"course_view_{course_id}")
-    ])
-
-    if materials:
-        text = (
+    if not materials_ordered:
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 ወደ ማቴሪያል ምድቦች (Back)", callback_data=f"course_view_{course_id}")]
+            ]
+        )
+        await callback.message.edit_text(
             f"{course.icon} <b>{course.name}</b>\n"
             f"📁 <b>{cat_title}</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "👇 ለማውረድ የሚፈልጉትን ፋይል ይጫኑ:"
+            "<i>📌 ለዚህ ኮርስ ማቴሪያሎች በቅርቡ የሚጫኑ ይሆናል።</i>\n\n"
+            f"አዳዲስ ማቴሪያሎች ሲጫኑ በ <b>@{TARGET_CHANNEL}</b> ይፋ ይደረጋሉ!",
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+            disable_web_page_preview=True,
         )
-    else:
-        text = (
-            f"{course.icon} <b>{course.name}</b>\n"
-            f"📁 <b>{cat_title}</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "<i>📌 ለዚህ ኮርስ ማቴሪያሎች በቅርቡ የሚጫኑ ይሆናል።</i>\n"
-            f"አዳዲስ ማቴሪያሎች ሲጫኑ በ <b>@{TARGET_CHANNEL}</b> ይፋ ይደረጋሉ!"
-        )
+        return
 
+    # User is verified and materials exist: Reveal all!
     await callback.message.edit_text(
-        text,
+        f"🎉 <b>{course.icon} {course.name} — {cat_title}</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ <b>{len(materials_ordered)}</b> ማቴሪያል(ሎች) ተገኝተዋል! ከስር ተልከውሎታል:\n"
+        f"🎓 ከ <b>FreshMinds Academy</b> | 📢 @{TARGET_CHANNEL}",
         parse_mode=ParseMode.HTML,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
         disable_web_page_preview=True,
+    )
+
+    # Deliver every document / file / link
+    for idx, m in enumerate(materials_ordered, start=1):
+        try:
+            if m.file_id:
+                await bot.send_document(
+                    chat_id=user_id,
+                    document=m.file_id,
+                    caption=(
+                        f"📚 <b>{idx}. {m.title}</b>\n"
+                        "━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🎓 <b>{course.name}</b> | {cat_title}\n"
+                        f"✨ <i>FreshMinds Academy</i> | 📢 @{TARGET_CHANNEL}"
+                    ),
+                    parse_mode=ParseMode.HTML,
+                )
+            elif m.external_url:
+                await bot.send_message(
+                    chat_id=user_id,
+                    text=(
+                        f"📚 <b>{idx}. {m.title}</b>\n"
+                        "━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🔗 <b>የማቴሪያሉ ሊንክ:</b>\n{m.external_url}\n\n"
+                        f"🎓 <b>{course.name}</b> | 📢 @{TARGET_CHANNEL}"
+                    ),
+                    parse_mode=ParseMode.HTML,
+                    disable_web_page_preview=False,
+                )
+            # Brief pause to avoid Telegram flood limits
+            await asyncio.sleep(0.35)
+        except Exception as e:
+            logger.error(f"Failed to deliver material {m.id} to user {user_id}: {e}")
+
+    # Send completion card with navigation buttons
+    nav_keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📂 ሌሎች ማቴሪያሎችን ምረጥ (Categories)", callback_data=f"course_view_{course_id}")],
+            [InlineKeyboardButton(text="📚 ወደ ኮርሶች ዝርዝር (All Courses)", callback_data="courses_list_back")],
+        ]
+    )
+    await bot.send_message(
+        chat_id=user_id,
+        text=(
+            f"✅ <b>ሁሉም የ{course.name} ({cat_title}) ማቴሪያሎች ተልከዋል!</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "ተጨማሪ ኮርሶችንና ማቴሪያሎችን ከታች መምረጥ ይችላሉ 👇"
+        ),
+        parse_mode=ParseMode.HTML,
+        reply_markup=nav_keyboard,
     )
 
 

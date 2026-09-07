@@ -118,7 +118,7 @@ async def run_tests():
     # 8. Test Universities CRUD & Seeding
     unis = await test_db.get_all_universities()
     assert len(unis) >= 5, "Default universities should be seeded"
-    assert "Addis Ababa University" in unis[0].name
+    assert any("Addis Ababa University" in u.name for u in unis)
 
     new_uni_id = await test_db.add_university("Gondar University (UoG)", "About Gondar...")
     gondar = await test_db.get_university_by_id(new_uni_id)

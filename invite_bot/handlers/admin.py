@@ -38,6 +38,16 @@ class AdminMaterialState(StatesGroup):
     waiting_for_category = State()
     waiting_for_title = State()
     waiting_for_file = State()
+    waiting_for_batch_files = State()
+
+
+CATEGORY_NAMES = {
+    "module": "📖 Official Module (PDF)",
+    "note": "📝 Summary Notes & Handouts",
+    "midterm": "📑 Midterm Exam Bank",
+    "final": "🎯 Final Exam Bank",
+    "video": "🎥 Video Tutorial / Link",
+}
 
 
 def is_admin(user_id: int) -> bool:
@@ -949,49 +959,186 @@ async def cb_admin_upload_select_course(callback: CallbackQuery, state: FSMConte
     )
 
 
+def extract_material_title(message: Message, fallback_num: int = 1) -> str:
+    """Extracts a clean, human-friendly title from a forwarded or uploaded message."""
+    # 1. Check caption
+    if message.caption and message.caption.strip():
+        caption_lines = [l.strip() for l in message.caption.strip().split("\n") if l.strip()]
+        if caption_lines:
+            first_line = caption_lines[0]
+            if len(first_line) > 2:
+                return first_line[:120]
+
+    # 2. Check document file_name
+    if message.document and message.document.file_name:
+        fname = message.document.file_name.strip()
+        for ext in [".pdf", ".PDF", ".docx", ".DOCX", ".doc", ".DOC", ".pptx", ".PPTX", ".ppt", ".zip"]:
+            if fname.endswith(ext):
+                fname = fname[:-len(ext)]
+                break
+        clean_name = fname.replace("_", " ").strip()
+        if clean_name:
+            return clean_name[:120]
+
+    # 3. Check video file_name
+    if message.video and message.video.file_name:
+        vname = message.video.file_name.strip()
+        for ext in [".mp4", ".MP4", ".mkv", ".MKV", ".avi"]:
+            if vname.endswith(ext):
+                vname = vname[:-len(ext)]
+                break
+        clean_name = vname.replace("_", " ").strip()
+        if clean_name:
+            return clean_name[:120]
+
+    # 4. Check audio title / file_name
+    if message.audio:
+        if message.audio.title:
+            return message.audio.title.strip()[:120]
+        if message.audio.file_name:
+            aname = message.audio.file_name.strip()
+            for ext in [".mp3", ".MP3", ".m4a", ".ogg"]:
+                if aname.endswith(ext):
+                    aname = aname[:-len(ext)]
+                    break
+            return aname.replace("_", " ").strip()[:120]
+
+    # 5. Check text link
+    if message.text:
+        text = message.text.strip()
+        lines = [l.strip() for l in text.split("\n") if l.strip()]
+        if len(lines) > 1 and not (lines[0].startswith("http://") or lines[0].startswith("https://")):
+            return lines[0][:120]
+        return text[:120]
+
+    return f"Material #{fallback_num}"
+
+
+async def finish_batch_upload(chat_id: int, state: FSMContext, bot: Bot):
+    """Finalizes batch upload, clears state, and shows uploaded summary."""
+    data = await state.get_data()
+    course_id = data.get("course_id")
+    category = data.get("category")
+    batch_count = data.get("batch_count", 0)
+    uploaded_titles = data.get("uploaded_titles", [])
+
+    await state.clear()
+
+    course = await db.get_course_by_id(course_id) if course_id else None
+    c_name = course.name if course else "Course"
+    cat_title = CATEGORY_NAMES.get(category, category.capitalize() if category else "Category")
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📤 Upload More (ሌላ ማቴሪያል ጫን)", callback_data="admin_upload_mat")],
+            [InlineKeyboardButton(text="📚 Courses Menu", callback_data="admin_courses_menu")],
+            [InlineKeyboardButton(text="👑 Admin Menu", callback_data="admin_back_main")],
+        ]
+    )
+
+    if batch_count == 0:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=(
+                f"ℹ️ <b>Upload Finished:</b> No new files were added.\n\n"
+                f"• Course: <b>{c_name}</b>\n"
+                f"• Category: <b>{cat_title}</b>"
+            ),
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+        )
+        return
+
+    titles_preview = "\n".join([f"  • {html.escape(t)}" for t in uploaded_titles[:10]])
+    if len(uploaded_titles) > 10:
+        titles_preview += f"\n  <i>...and {len(uploaded_titles) - 10} more</i>"
+
+    await bot.send_message(
+        chat_id=chat_id,
+        text=(
+            f"🎉 <b>Batch Upload Successfully Completed!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"• Course: <b>{c_name}</b>\n"
+            f"• Category: <b>{cat_title}</b>\n"
+            f"• Total Added: <b>{batch_count} files/links</b>\n\n"
+            f"📋 <b>Saved Materials:</b>\n{titles_preview}\n\n"
+            f"✨ Students can now reveal and download all {batch_count} materials instantly from the bot!"
+        ),
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
 @router.callback_query(F.data.startswith("admat_cat_"))
 async def cb_admin_upload_select_category(callback: CallbackQuery, state: FSMContext):
-    """Ask for material title."""
+    """Start batch upload / continuous forwarding mode for materials."""
     if not is_admin(callback.from_user.id):
         return
     category = callback.data.partition("admat_cat_")[2]
-    await state.update_data(category=category)
-    await state.set_state(AdminMaterialState.waiting_for_title)
+    data = await state.get_data()
+    course_id = data.get("course_id")
+
+    course = await db.get_course_by_id(course_id) if course_id else None
+    c_name = course.name if course else "Course"
+    cat_title = CATEGORY_NAMES.get(category, category.capitalize())
+
+    await state.update_data(category=category, batch_count=0, uploaded_titles=[])
+    await state.set_state(AdminMaterialState.waiting_for_batch_files)
     await callback.answer()
 
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Finished Uploading (ጨርሻለሁ)", callback_data="admat_done_batch")],
+            [InlineKeyboardButton(text="❌ Cancel", callback_data="admin_courses_menu")],
+        ]
+    )
+
     await callback.message.answer(
-        "📝 <b>Enter Material Title:</b>\n\n"
-        "Send the title for this document (e.g. <code>2010-2016 Midterm Exam Collection with Solutions</code>):",
+        f"📥 <b>Forward / Upload Mode Activated!</b>\n\n"
+        f"• Course: <b>{c_name}</b>\n"
+        f"• Category: <b>{cat_title}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🚀 <b>You can now forward as many PDFs, exams, or documents as you want!</b>\n\n"
+        f"💡 <i>How it works:</i>\n"
+        f"1️⃣ <b>Forward directly from your channel</b> (or chats/saved messages).\n"
+        f"2️⃣ Or attach and upload PDFs/documents here.\n"
+        f"3️⃣ You can also send Google Drive / YouTube links as text.\n"
+        f"4️⃣ The title will be automatically extracted from the file name or caption.\n\n"
+        f"👉 When you are done forwarding all files, tap <b>'✅ Finished Uploading (ጨርሻለሁ)'</b> below or send <code>/done</code>.",
         parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
     )
 
 
-@router.message(AdminMaterialState.waiting_for_title)
-async def state_admin_mat_title(message: Message, state: FSMContext):
-    """Receive material title and ask for file."""
+@router.callback_query(F.data == "admat_done_batch")
+async def cb_admin_mat_done(callback: CallbackQuery, state: FSMContext, bot: Bot):
+    """Handles 'Finished Uploading' button click."""
+    await callback.answer()
+    await finish_batch_upload(callback.message.chat.id, state, bot)
+
+
+@router.message(AdminMaterialState.waiting_for_batch_files, Command("done"))
+async def state_admin_mat_done_cmd(message: Message, state: FSMContext, bot: Bot):
+    """Handles /done command to finish batch upload."""
+    await finish_batch_upload(message.chat.id, state, bot)
+
+
+@router.message(AdminMaterialState.waiting_for_batch_files)
+async def state_admin_mat_batch_files(message: Message, state: FSMContext):
+    """Continuously receives forwarded or uploaded files/links for the selected course and category."""
     if not is_admin(message.from_user.id):
         return
-    title = message.text.strip()
-    await state.update_data(title=title)
-    await state.set_state(AdminMaterialState.waiting_for_file)
 
-    await message.answer(
-        f"📎 <b>Send File or Link for '{title}':</b>\n\n"
-        "• <b>Option A:</b> Attach and send the <b>PDF / Document</b> directly in chat.\n"
-        "• <b>Option B:</b> Or send a <b>Google Drive / Video URL</b> as text.",
-        parse_mode=ParseMode.HTML,
-    )
-
-
-@router.message(AdminMaterialState.waiting_for_file)
-async def state_admin_mat_file(message: Message, state: FSMContext):
-    """Receive file attachment or URL and save material."""
-    if not is_admin(message.from_user.id):
-        return
     data = await state.get_data()
-    course_id = data["course_id"]
-    category = data["category"]
-    title = data["title"]
+    course_id = data.get("course_id")
+    category = data.get("category")
+    batch_count = data.get("batch_count", 0)
+    uploaded_titles = data.get("uploaded_titles", [])
+
+    if not course_id or not category:
+        await state.clear()
+        await message.answer("⚠️ Session expired. Please start upload again from /admin.")
+        return
 
     file_id = None
     external_url = None
@@ -1004,9 +1151,22 @@ async def state_admin_mat_file(message: Message, state: FSMContext):
         file_id = message.audio.file_id
     elif message.text and (message.text.startswith("http://") or message.text.startswith("https://")):
         external_url = message.text.strip()
-    else:
-        await message.answer("⚠️ Please attach a valid file (PDF/Document) or send a valid URL starting with https://")
+    elif message.text and ("http://" in message.text or "https://" in message.text):
+        for word in message.text.split():
+            if word.startswith("http://") or word.startswith("https://"):
+                external_url = word
+                break
+
+    if not file_id and not external_url:
+        await message.answer(
+            "⚠️ Please forward a PDF/Document, video, audio, or send a valid URL.\n"
+            "If you have finished uploading, tap <b>'✅ Finished Uploading'</b> below or send <code>/done</code>.",
+            parse_mode=ParseMode.HTML,
+        )
         return
+
+    # Extract title automatically
+    title = extract_material_title(message, fallback_num=batch_count + 1)
 
     await db.add_material(
         course_id=course_id,
@@ -1015,25 +1175,21 @@ async def state_admin_mat_file(message: Message, state: FSMContext):
         file_id=file_id,
         external_url=external_url,
     )
-    await state.clear()
 
-    course = await db.get_course_by_id(course_id)
-    c_name = course.name if course else "Course"
+    batch_count += 1
+    uploaded_titles.append(title)
+    await state.update_data(batch_count=batch_count, uploaded_titles=uploaded_titles)
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📤 Upload Another File", callback_data="admin_upload_mat")],
-            [InlineKeyboardButton(text="📚 Courses Menu", callback_data="admin_courses_menu")],
-            [InlineKeyboardButton(text="👑 Admin Menu", callback_data="admin_back_main")],
+            [InlineKeyboardButton(text=f"✅ Finished Uploading ({batch_count} saved)", callback_data="admat_done_batch")],
+            [InlineKeyboardButton(text="❌ Cancel", callback_data="admin_courses_menu")],
         ]
     )
 
-    await message.answer(
-        f"✅ <b>Successfully Uploaded Material!</b>\n\n"
-        f"• Course: <b>{c_name}</b>\n"
-        f"• Category: <b>{category}</b>\n"
-        f"• Title: <b>{title}</b>\n\n"
-        "Students can now browse and download this file instantly from the bot!",
+    await message.reply(
+        f"✅ <b>[#{batch_count}] Saved:</b> <code>{html.escape(title)}</code>\n"
+        f"<i>Keep forwarding more files, or tap Finished when done.</i>",
         parse_mode=ParseMode.HTML,
         reply_markup=keyboard,
     )
