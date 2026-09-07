@@ -6,6 +6,7 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.enums import ParseMode
+from database import db
 import messages as msg
 
 router = Router()
@@ -16,8 +17,11 @@ router = Router()
 @router.message(Command("prizes"))
 async def handle_rules(message: Message):
     """Display weekly prizes, rules, anti-cheat policies, and award info."""
+    comp = await db.get_active_competition()
+    rules_text = msg.format_rules_text(comp)
     await message.answer(
-        msg.RULES_TEXT,
+        rules_text,
         parse_mode=ParseMode.HTML,
         disable_web_page_preview=True,
     )
+

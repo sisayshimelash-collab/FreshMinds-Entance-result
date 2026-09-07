@@ -47,6 +47,18 @@ from handlers.utils import check_and_credit_membership, send_feature_lock_messag
 
 async def generate_and_send_link(target: Message | CallbackQuery, bot: Bot, user):
     """Generates and sends the referral link and promo post to the user."""
+    chat_id = target.chat.id if isinstance(target, Message) else target.message.chat.id
+
+    # Check if there is an active competition
+    comp = await db.get_active_competition()
+    if not comp:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=msg.NO_ACTIVE_COMPETITION_TEXT,
+            parse_mode=ParseMode.HTML,
+        )
+        return
+
     # 1. Fetch user from DB
     await db.get_or_create_user(
         user_id=user.id,
@@ -59,6 +71,7 @@ async def generate_and_send_link(target: Message | CallbackQuery, bot: Bot, user
     invite_link = f"https://t.me/{bot_info.username}?start=ref_{user.id}"
     await db.set_user_invite_link(user.id, invite_link)
     logger.info(f"Generated referral link for user {user.id}: {invite_link}")
+
 
     # 3. Send Ready-to-Forward Promotional Marketing Post
     promo_post = msg.format_promotional_post(invite_link)

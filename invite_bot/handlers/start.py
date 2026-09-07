@@ -24,27 +24,28 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-def get_main_menu_keyboard() -> ReplyKeyboardMarkup:
-    """Persistent bottom reply keyboard for easy 1-tap navigation."""
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=msg.BTN_RESOURCES)],
-            [
-                KeyboardButton(text=msg.BTN_UNIVERSITIES),
-                KeyboardButton(text=msg.BTN_GPA_CALC),
-            ],
-            [
-                KeyboardButton(text=msg.BTN_GET_LINK),
-                KeyboardButton(text=msg.BTN_LEADERBOARD),
-            ],
-            [
-                KeyboardButton(text=msg.BTN_MY_STATS),
-                KeyboardButton(text=msg.BTN_RULES),
-            ],
-            [
-                KeyboardButton(text=msg.BTN_CHANNEL),
-            ],
+def get_main_menu_keyboard(has_active_comp: bool = False) -> ReplyKeyboardMarkup:
+    """Persistent bottom reply keyboard. Hides competition buttons when no active competition."""
+    rows = [
+        [KeyboardButton(text=msg.BTN_RESOURCES)],
+        [
+            KeyboardButton(text=msg.BTN_UNIVERSITIES),
+            KeyboardButton(text=msg.BTN_GPA_CALC),
         ],
+    ]
+    if has_active_comp:
+        rows.append([
+            KeyboardButton(text=msg.BTN_GET_LINK),
+            KeyboardButton(text=msg.BTN_LEADERBOARD),
+        ])
+        rows.append([
+            KeyboardButton(text=msg.BTN_MY_STATS),
+            KeyboardButton(text=msg.BTN_RULES),
+        ])
+    rows.append([KeyboardButton(text=msg.BTN_CHANNEL)])
+
+    return ReplyKeyboardMarkup(
+        keyboard=rows,
         resize_keyboard=True,
         persistent=True,
     )
@@ -76,7 +77,12 @@ def get_welcome_join_inline_markup(referrer_id: Optional[int] = None) -> InlineK
 async def credit_and_notify_referrer(
     bot: Bot, referrer_id: int, joining_user, invite_link_str: str = ""
 ):
-    """Credit +1 referral point to referrer and send instant push notification."""
+    """Credit +1 referral point to referrer and send instant push notification if a competition is active."""
+    comp = await db.get_active_competition()
+    if not comp:
+        logger.info("No active competition; skipping referral credit.")
+        return False
+
     credited = await db.record_referral(
         referrer_id=referrer_id,
         referred_user_id=joining_user.id,
@@ -119,10 +125,14 @@ async def handle_start(message: Message, bot: Bot):
         first_name=user.first_name,
     )
 
+    # Check for active competition
+    active_comp = await db.get_active_competition()
+    has_comp = active_comp is not None
+
     # Check for referral payload (e.g. /start ref_12345678 or /start 12345678)
     referrer_id = None
     args = message.text.split()
-    if len(args) > 1:
+    if len(args) > 1 and has_comp:
         payload = args[1].strip()
         if payload.startswith("ref_") and payload[4:].isdigit():
             referrer_id = int(payload[4:])
@@ -130,7 +140,7 @@ async def handle_start(message: Message, bot: Bot):
             referrer_id = int(payload)
 
     show_verify_button = False
-    # If joined via a referral link and not self
+    # If joined via a referral link during active competition and not self
     if referrer_id and referrer_id != user.id:
         is_member = await check_channel_membership(bot, user.id)
         if is_member:
@@ -142,13 +152,14 @@ async def handle_start(message: Message, bot: Bot):
             await db.set_pending_referrer(user.id, referrer_id)
             show_verify_button = True
 
-    # Standard Welcome — shown to EVERY user with full buttons and full features!
+    # Welcome message dynamically tailored to active competition
+    welcome_text = msg.format_welcome_text(active_comp)
     inline_markup = get_welcome_join_inline_markup(
         referrer_id=referrer_id if show_verify_button else None
     )
 
     await message.answer(
-        msg.WELCOME_TEXT,
+        welcome_text,
         parse_mode=ParseMode.HTML,
         reply_markup=inline_markup,
         disable_web_page_preview=True,
@@ -156,8 +167,9 @@ async def handle_start(message: Message, bot: Bot):
     await message.answer(
         "👇 <b>ከታች ያሉትን የቦቱን አገልግሎቶች ይጠቀሙ:</b>",
         parse_mode=ParseMode.HTML,
-        reply_markup=get_main_menu_keyboard(),
+        reply_markup=get_main_menu_keyboard(has_active_comp=has_comp),
     )
+
 
 
 @router.callback_query(F.data.startswith("verify_"))
@@ -225,8 +237,10 @@ async def cb_verified_noop(callback: CallbackQuery):
 @router.message(Command("help"))
 async def handle_help(message: Message):
     """Handle /help command."""
+    active_comp = await db.get_active_competition()
+    has_comp = active_comp is not None
     await message.answer(
-        msg.WELCOME_TEXT,
+        msg.format_welcome_text(active_comp),
         parse_mode=ParseMode.HTML,
         reply_markup=get_welcome_join_inline_markup(),
         disable_web_page_preview=True,
@@ -234,8 +248,9 @@ async def handle_help(message: Message):
     await message.answer(
         "👇 <b>ከታች ያሉትን የቦቱን አገልግሎቶች ይጠቀሙ:</b>",
         parse_mode=ParseMode.HTML,
-        reply_markup=get_main_menu_keyboard(),
+        reply_markup=get_main_menu_keyboard(has_active_comp=has_comp),
     )
+
 
 
 @router.message(F.text == msg.BTN_CHANNEL)

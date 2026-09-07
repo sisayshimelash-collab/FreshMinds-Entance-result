@@ -15,6 +15,15 @@ router = Router()
 
 async def show_stats(target: Message | CallbackQuery, user):
     """Fetch and display personal competition score, invites count, and rank."""
+    comp = await db.get_active_competition()
+    if not comp:
+        text = msg.NO_ACTIVE_COMPETITION_TEXT
+        if isinstance(target, CallbackQuery):
+            await target.message.edit_text(text, parse_mode=ParseMode.HTML)
+        else:
+            await target.answer(text, parse_mode=ParseMode.HTML)
+        return
+
     await db.get_or_create_user(
         user_id=user.id,
         username=user.username,
@@ -42,6 +51,7 @@ async def show_stats(target: Message | CallbackQuery, user):
             parse_mode=ParseMode.HTML,
             disable_web_page_preview=True,
         )
+
 
 
 @router.message(F.text == msg.BTN_MY_STATS)

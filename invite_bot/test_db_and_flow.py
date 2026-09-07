@@ -171,13 +171,76 @@ async def run_tests():
     assert "Great Distinction" in gpa_card
     print("  ✅ 10. GPA Calculator math engine (ignoring unfilled courses) passed.")
 
+    # 11. Test Competitions CMS & Dynamic Keyboard
+    from handlers.start import get_main_menu_keyboard
+
+    # A: Check initial default seeded competition
+    active_comp = await test_db.get_active_competition()
+    assert active_comp is not None, "Default competition should be seeded"
+    assert active_comp.is_active == 1
+
+    # B: Check dynamic keyboard when competition is active (8 buttons)
+    kb_active = get_main_menu_keyboard(has_active_comp=True)
+    all_active_buttons = [btn.text for row in kb_active.keyboard for btn in row]
+    assert len(all_active_buttons) == 8
+    assert msg.BTN_GET_LINK in all_active_buttons
+    assert msg.BTN_LEADERBOARD in all_active_buttons
+    assert msg.BTN_MY_STATS in all_active_buttons
+    assert msg.BTN_RULES in all_active_buttons
+
+    # C: Check dynamic keyboard when competition is inactive (4 buttons)
+    kb_inactive = get_main_menu_keyboard(has_active_comp=False)
+    all_inactive_buttons = [btn.text for row in kb_inactive.keyboard for btn in row]
+    assert len(all_inactive_buttons) == 4
+    assert msg.BTN_GET_LINK not in all_inactive_buttons
+    assert msg.BTN_LEADERBOARD not in all_inactive_buttons
+    assert msg.BTN_MY_STATS not in all_inactive_buttons
+    assert msg.BTN_RULES not in all_inactive_buttons
+    assert msg.BTN_RESOURCES in all_inactive_buttons
+    assert msg.BTN_UNIVERSITIES in all_inactive_buttons
+    assert msg.BTN_GPA_CALC in all_inactive_buttons
+    assert msg.BTN_CHANNEL in all_inactive_buttons
+
+    # D: Test Welcome & Rules dynamic text
+    welcome_with_comp = msg.format_welcome_text(active_comp)
+    assert active_comp.title in welcome_with_comp
+    welcome_without_comp = msg.format_welcome_text(None)
+    assert "ውድድር:" not in welcome_without_comp
+
+    rules_with_comp = msg.format_rules_text(active_comp)
+    assert active_comp.title in rules_with_comp
+    rules_without_comp = msg.format_rules_text(None)
+    assert "በአሁኑ ሰዓት ንቁ የሆነ የግብዣ ውድድር የለም" in rules_without_comp
+
+    # E: Test creating a new timed competition
+    new_comp_id = await test_db.create_competition(
+        title="የመስከረም 15 ልዩ የግብዣ ውድድር",
+        prizes_text="🥇 1ኛ: 1,000 ብር\n🥈 2ኛ: 500 ብር",
+        end_date_str="እስከ መስከረም 15 2019 ዓ.ም",
+    )
+    current_comp = await test_db.get_active_competition()
+    assert current_comp.id == new_comp_id
+    assert current_comp.title == "የመስከረም 15 ልዩ የግብዣ ውድድር"
+
+    # F: Test ending active competition (archives and switches to inactive)
+    ended_winners = await test_db.end_active_competition("Cycle 1")
+    comp_after_end = await test_db.get_active_competition()
+    assert comp_after_end is None, "After ending, get_active_competition should return None"
+
+    all_comps = await test_db.get_all_competitions()
+    assert len(all_comps) >= 2
+    assert all(c.is_active == 0 for c in all_comps)
+
+    print("  ✅ 11. Competitions CMS, Dynamic Keyboards & Timed Cycles passed.")
+
     # Clean up test DB
     if test_db_path.exists():
         os.remove(test_db_path)
 
-    print("\n🎉 ALL 10 TEST SUITES PASSED WITH 100% SUCCESS!")
+    print("\n🎉 ALL 11 TEST SUITES PASSED WITH 100% SUCCESS!")
 
 
 if __name__ == "__main__":
     asyncio.run(run_tests())
+
 

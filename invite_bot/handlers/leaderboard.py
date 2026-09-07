@@ -16,6 +16,15 @@ router = Router()
 
 async def show_leaderboard(target: Message | CallbackQuery, user):
     """Render real-time Leaderboard with personal rank comparison."""
+    comp = await db.get_active_competition()
+    if not comp:
+        text = msg.NO_ACTIVE_COMPETITION_TEXT
+        if isinstance(target, CallbackQuery):
+            await target.message.edit_text(text, parse_mode=ParseMode.HTML)
+        else:
+            await target.answer(text, parse_mode=ParseMode.HTML)
+        return
+
     await db.get_or_create_user(
         user_id=user.id,
         username=user.username,
@@ -30,6 +39,7 @@ async def show_leaderboard(target: Message | CallbackQuery, user):
         my_rank=my_rank,
         my_points=my_points,
         is_admin=is_admin(user.id),
+        competition_title=comp.title,
     )
 
     if isinstance(target, CallbackQuery):
@@ -44,6 +54,7 @@ async def show_leaderboard(target: Message | CallbackQuery, user):
             parse_mode=ParseMode.HTML,
             disable_web_page_preview=True,
         )
+
 
 
 @router.message(F.text == msg.BTN_LEADERBOARD)

@@ -6,7 +6,14 @@ import aiosqlite
 import logging
 from typing import Optional, NamedTuple
 from datetime import datetime
-from config import DB_PATH
+from config import (
+    DB_PATH,
+    COMPETITION_TITLE,
+    PRIZE_1ST,
+    PRIZE_2ND,
+    PRIZE_3RD,
+    PRIZE_4TH,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +56,15 @@ class MaterialRecord(NamedTuple):
     title: str
     file_id: Optional[str]
     external_url: Optional[str]
+
+
+class CompetitionRecord(NamedTuple):
+    id: int
+    title: str
+    prizes_text: str
+    end_date_str: str
+    is_active: int
+    created_at: str
 
 
 class Database:
@@ -188,6 +204,35 @@ class Database:
                         "INSERT INTO universities (name, about_text, sort_order) VALUES (?, ?, ?)",
                         default_unis,
                     )
+
+            # 7. Competitions Table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS competitions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    prizes_text TEXT NOT NULL,
+                    end_date_str TEXT NOT NULL,
+                    is_active INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # Seed default competition if empty
+            cursor = await db.execute("SELECT COUNT(*) FROM competitions")
+            if (await cursor.fetchone())[0] == 0:
+                default_prizes = (
+                    f"🥇 1ኛ: {PRIZE_1ST}\n"
+                    f"🥈 2ኛ: {PRIZE_2ND}\n"
+                    f"🥉 3ኛ: {PRIZE_3RD}\n"
+                    f"🎖️ 4ኛ: {PRIZE_4TH}"
+                )
+                await db.execute(
+                    """
+                    INSERT INTO competitions (title, prizes_text, end_date_str, is_active)
+                    VALUES (?, ?, ?, 1)
+                    """,
+                    (COMPETITION_TITLE, default_prizes, "የመስከረም 15 2019 ዓ.ም"),
+                )
 
             await db.commit()
             logger.info("Database initialized successfully.")
@@ -762,6 +807,112 @@ class Database:
             await db.commit()
             return cursor.rowcount > 0
 
+    # ── Competitions CRUD ────────────────────────────────────────────────────
+    async def get_active_competition(self) -> Optional[CompetitionRecord]:
+        """Fetch the currently active competition, if any."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT id, title, prizes_text, end_date_str, is_active, created_at
+                FROM competitions
+                WHERE is_active = 1
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            )
+            row = await cursor.fetchone()
+            if row:
+                return CompetitionRecord(
+                    id=row["id"],
+                    title=row["title"],
+                    prizes_text=row["prizes_text"],
+                    end_date_str=row["end_date_str"],
+                    is_active=row["is_active"],
+                    created_at=row["created_at"],
+                )
+            return None
+
+    async def create_competition(
+        self, title: str, prizes_text: str, end_date_str: str
+    ) -> int:
+        """Create a new active competition, deactivating any existing active ones and clearing active referrals."""
+        async with aiosqlite.connect(self.db_path) as db:
+            # Deactivate any currently active competitions
+            await db.execute("UPDATE competitions SET is_active = 0 WHERE is_active = 1")
+            # Clear old referrals to start fresh
+            await db.execute("DELETE FROM referrals")
+            # Insert new competition
+            cursor = await db.execute(
+                """
+                INSERT INTO competitions (title, prizes_text, end_date_str, is_active)
+                VALUES (?, ?, ?, 1)
+                """,
+                (title.strip(), prizes_text.strip(), end_date_str.strip()),
+            )
+            await db.commit()
+            return cursor.lastrowid
+
+    async def end_active_competition(
+        self, cycle_name: Optional[str] = None
+    ) -> list[LeaderboardEntry]:
+        """Archive current leaderboard, deactivate the active competition, and clear referrals."""
+        import json
+
+        active_comp = await self.get_active_competition()
+        comp_title = cycle_name or (active_comp.title if active_comp else "Competition Cycle")
+
+        top_winners = await self.get_top_leaderboard(limit=10)
+        winners_data = [
+            {
+                "rank": w.rank,
+                "user_id": w.user_id,
+                "first_name": w.first_name,
+                "username": w.username,
+                "points": w.points,
+            }
+            for w in top_winners
+        ]
+
+        async with aiosqlite.connect(self.db_path) as db:
+            # Save archive
+            await db.execute(
+                "INSERT INTO weekly_archives (cycle_name, winners_json) VALUES (?, ?)",
+                (comp_title, json.dumps(winners_data)),
+            )
+            # Deactivate active competitions
+            await db.execute("UPDATE competitions SET is_active = 0 WHERE is_active = 1")
+            # Clear referrals
+            await db.execute("DELETE FROM referrals")
+            await db.commit()
+
+        return top_winners
+
+    async def get_all_competitions(self) -> list[CompetitionRecord]:
+        """Fetch all competitions ordered by id descending."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT id, title, prizes_text, end_date_str, is_active, created_at
+                FROM competitions
+                ORDER BY id DESC
+                """
+            )
+            rows = await cursor.fetchall()
+            return [
+                CompetitionRecord(
+                    id=r["id"],
+                    title=r["title"],
+                    prizes_text=r["prizes_text"],
+                    end_date_str=r["end_date_str"],
+                    is_active=r["is_active"],
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
 
 # Global database instance
 db = Database()
+

@@ -41,6 +41,12 @@ class AdminMaterialState(StatesGroup):
     waiting_for_batch_files = State()
 
 
+class AdminCompState(StatesGroup):
+    waiting_for_title = State()
+    waiting_for_prizes = State()
+    waiting_for_end_date = State()
+
+
 CATEGORY_NAMES = {
     "module": "📖 Official Module (PDF)",
     "note": "📝 Summary Notes & Handouts",
@@ -71,18 +77,27 @@ def get_admin_menu_markup() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(
-                    text="📊 Campaign Stats", callback_data="admin_stats"
+                    text="🏆 Competitions CMS", callback_data="admin_comp_menu"
                 ),
                 InlineKeyboardButton(
-                    text="🏆 Top 4 Leaders", callback_data="admin_top"
+                    text="📊 Campaign Stats", callback_data="admin_stats"
                 ),
             ],
             [
                 InlineKeyboardButton(
-                    text="👥 List Participants", callback_data="admin_users"
+                    text="🌟 Top 4 Leaders", callback_data="admin_top"
                 ),
                 InlineKeyboardButton(
+                    text="👥 List Participants", callback_data="admin_users"
+                ),
+            ],
+            [
+                InlineKeyboardButton(
                     text="📢 Broadcast", callback_data="admin_hint_bc"
+                ),
+                InlineKeyboardButton(
+                    text="🔄 Reset Week: /reset_week",
+                    callback_data="admin_hint_reset",
                 ),
             ],
             [
@@ -100,13 +115,10 @@ def get_admin_menu_markup() -> InlineKeyboardMarkup:
                     text="🔍 Audit: /audit <id>",
                     callback_data="admin_hint_audit",
                 ),
-                InlineKeyboardButton(
-                    text="🔄 Reset Week: /reset_week",
-                    callback_data="admin_hint_reset",
-                ),
             ],
         ]
     )
+
 
 
 @router.message(Command("admin"))
@@ -1250,3 +1262,334 @@ async def cb_admin_back_main(callback: CallbackQuery):
         "• <code>/reset_week &lt;name&gt;</code> ➜ Archive Top 4 and reset"
     )
     await callback.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=get_admin_menu_markup())
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ── Competitions CMS (Dynamic Timed Competitions & Prize Management) ───────
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "admin_comp_menu")
+async def cb_admin_comp_menu(callback: CallbackQuery, state: FSMContext = None):
+    """Main Competitions Management Panel."""
+    if not is_admin(callback.from_user.id):
+        return
+    if state:
+        await state.clear()
+    await callback.answer()
+
+    active_comp = await db.get_active_competition()
+
+    if active_comp:
+        status_header = "🟢 <b>Active Competition Running</b>"
+        details = (
+            f"🏆 <b>Title:</b> {html.escape(active_comp.title)}\n"
+            f"⏰ <b>Ends:</b> {html.escape(active_comp.end_date_str)}\n\n"
+            f"🎁 <b>Prizes:</b>\n{html.escape(active_comp.prizes_text)}\n\n"
+            "<i>(All 8 menu buttons are currently displayed to users)</i>"
+        )
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    text="⏹️ End Active Competition", callback_data="admin_comp_end_confirm"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="➕ Create / Replace Competition", callback_data="admin_comp_create"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📜 Competition History", callback_data="admin_comp_history"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔙 Back to Admin", callback_data="admin_back_main"
+                )
+            ],
+        ]
+    else:
+        status_header = "⚪ <b>No Active Competition</b>"
+        details = (
+            "<i>The bot is currently running in pure educational mode.\n"
+            "Competition buttons (Link, Leaderboard, Stats, Rules) are hidden from users.</i>"
+        )
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    text="➕ Start New Competition", callback_data="admin_comp_create"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📜 Competition History", callback_data="admin_comp_history"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔙 Back to Admin", callback_data="admin_back_main"
+                )
+            ],
+        ]
+
+    text = (
+        "🏆 <b>FreshMinds Competitions CMS</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"{status_header}\n\n"
+        f"{details}"
+    )
+    await callback.message.answer(
+        text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+
+
+@router.callback_query(F.data == "admin_comp_create")
+async def cb_admin_comp_create(callback: CallbackQuery, state: FSMContext):
+    """Step 1: Ask for competition title."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    await state.set_state(AdminCompState.waiting_for_title)
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel", callback_data="admin_comp_menu")]]
+    )
+    await callback.message.answer(
+        "🏆 <b>New Competition — Step 1/3</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Please send the <b>Competition Title / Name</b>:\n\n"
+        "<i>Example:</i> <code>የ 2019 ዓ.ም የ Freshman ዩኒቨርሲቲ ተማሪዎች የግብዣ ውድድር</code>\n\n"
+        "<i>Send /cancel to abort.</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.message(AdminCompState.waiting_for_title, Command("cancel"))
+@router.message(AdminCompState.waiting_for_prizes, Command("cancel"))
+@router.message(AdminCompState.waiting_for_end_date, Command("cancel"))
+async def cmd_cancel_comp(message: Message, state: FSMContext):
+    """Cancel competition creation."""
+    await state.clear()
+    await message.answer("❌ Competition creation cancelled.")
+
+
+@router.message(AdminCompState.waiting_for_title)
+async def msg_comp_title(message: Message, state: FSMContext):
+    """Step 2: Save title and ask for prizes text."""
+    if not is_admin(message.from_user.id):
+        return
+    title = message.text.strip()
+    if not title:
+        await message.answer("⚠️ Please provide a valid title text.")
+        return
+
+    await state.update_data(title=title)
+    await state.set_state(AdminCompState.waiting_for_prizes)
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel", callback_data="admin_comp_menu")]]
+    )
+    await message.answer(
+        "🎁 <b>New Competition — Step 2/3</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"Title: <b>{html.escape(title)}</b>\n\n"
+        "Now send the <b>Prizes Description</b> (you can format it with emojis/lines):\n\n"
+        "<i>Example:</i>\n"
+        "🥇 1ኛ: 500 ብር + 100 ብር ካርድ\n"
+        "🥈 2ኛ: 300 ብር + 50 ብር ካርድ\n"
+        "🥉 3ኛ: 200 ብር + 50 ብር ካርድ\n"
+        "🎖️ 4ኛ: 100 ብር ካርድ\n\n"
+        "<i>Send /cancel to abort.</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.message(AdminCompState.waiting_for_prizes)
+async def msg_comp_prizes(message: Message, state: FSMContext):
+    """Step 3: Save prizes and ask for end date string."""
+    if not is_admin(message.from_user.id):
+        return
+    prizes_text = message.text.strip()
+    if not prizes_text:
+        await message.answer("⚠️ Please provide a valid prizes description.")
+        return
+
+    await state.update_data(prizes_text=prizes_text)
+    await state.set_state(AdminCompState.waiting_for_end_date)
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel", callback_data="admin_comp_menu")]]
+    )
+    await message.answer(
+        "⏰ <b>New Competition — Step 3/3</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Now send the <b>End Date & Time</b> description:\n\n"
+        "<i>Examples:</i>\n"
+        "• <code>እስከ መስከረም 15 2019 ዓ.ም ምሽት 2:00</code>\n"
+        "• <code>እሁድ መስከረም 20 2019 ዓ.ም</code>\n\n"
+        "<i>Send /cancel to abort.</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.message(AdminCompState.waiting_for_end_date)
+async def msg_comp_end_date(message: Message, state: FSMContext):
+    """Final Step: Save competition and activate it."""
+    if not is_admin(message.from_user.id):
+        return
+    end_date_str = message.text.strip()
+    if not end_date_str:
+        await message.answer("⚠️ Please provide a valid end date string.")
+        return
+
+    data = await state.get_data()
+    title = data.get("title", "FreshMinds Competition")
+    prizes_text = data.get("prizes_text", "")
+
+    comp_id = await db.create_competition(
+        title=title,
+        prizes_text=prizes_text,
+        end_date_str=end_date_str,
+    )
+    await state.clear()
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Back to Competitions CMS", callback_data="admin_comp_menu")]
+        ]
+    )
+
+    await message.answer(
+        "🎉 <b>Competition Successfully Created and Activated!</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"🆔 <b>Competition ID:</b> #{comp_id}\n"
+        f"🏆 <b>Title:</b> {html.escape(title)}\n"
+        f"⏰ <b>End Date:</b> {html.escape(end_date_str)}\n\n"
+        f"🎁 <b>Prizes:</b>\n{html.escape(prizes_text)}\n\n"
+        "✨ <b>System Status:</b>\n"
+        "• Main menu keyboard now displays all 8 buttons for all users.\n"
+        "• Welcome screen includes the competition announcement.\n"
+        "• Referrals table cleared and ready for new points!",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.callback_query(F.data == "admin_comp_end_confirm")
+async def cb_admin_comp_end_confirm(callback: CallbackQuery):
+    """Confirmation prompt before ending active competition."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+
+    active_comp = await db.get_active_competition()
+    if not active_comp:
+        await callback.answer("No active competition to end.", show_alert=True)
+        await cb_admin_comp_menu(callback)
+        return
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✅ Yes, End Competition Now", callback_data="admin_comp_end_do"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❌ Cancel", callback_data="admin_comp_menu"
+                )
+            ],
+        ]
+    )
+
+    await callback.message.answer(
+        "⚠️ <b>Confirm Ending Competition</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"Are you sure you want to end: <b>{html.escape(active_comp.title)}</b>?\n\n"
+        "<b>What happens next:</b>\n"
+        "1. Current Top 10 winners are archived in database history.\n"
+        "2. Competition is marked inactive.\n"
+        "3. Referral points are cleared.\n"
+        "4. Bot switches to educational mode (hides the 4 competition buttons from users).",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.callback_query(F.data == "admin_comp_end_do")
+async def cb_admin_comp_end_do(callback: CallbackQuery):
+    """Execute ending active competition."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+
+    active_comp = await db.get_active_competition()
+    comp_title = active_comp.title if active_comp else "Competition"
+
+    winners = await db.end_active_competition()
+
+    winners_text = ""
+    if winners:
+        medals = {1: "🥇", 2: "🥈", 3: "🥉", 4: "🎖️"}
+        for w in winners[:4]:
+            medal = medals.get(w.rank, f"{w.rank}.")
+            user_ref = f"@{w.username}" if w.username else f"ID: {w.user_id}"
+            winners_text += f"{medal} <b>{html.escape(w.first_name)}</b> ({user_ref}) ➜ <b>{w.points}</b> invites\n"
+    else:
+        winners_text = "<i>No invites were recorded in this round.</i>\n"
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Back to Competitions CMS", callback_data="admin_comp_menu")]
+        ]
+    )
+
+    await callback.message.answer(
+        "⏹️ <b>Competition Successfully Ended!</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"🏆 <b>{html.escape(comp_title)}</b>\n\n"
+        f"<b>Final Top Winners:</b>\n{winners_text}\n"
+        "✅ The winners have been permanently archived.\n"
+        "✅ The bot now shows 4 educational buttons only until you create the next competition.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.callback_query(F.data == "admin_comp_history")
+async def cb_admin_comp_history(callback: CallbackQuery):
+    """Display history of all competitions."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+
+    comps = await db.get_all_competitions()
+
+    if not comps:
+        text = "📜 <b>No competitions found in history.</b>"
+    else:
+        lines = [
+            "📜 <b>Competitions History</b>",
+            "━━━━━━━━━━━━━━━━━━━━",
+        ]
+        for c in comps:
+            status_icon = "🟢 [Active]" if c.is_active else "⚪ [Ended]"
+            lines.append(
+                f"• #{c.id} <b>{html.escape(c.title)}</b> {status_icon}\n"
+                f"  ⏰ Ends: {html.escape(c.end_date_str)}\n"
+                f"  📅 Created: {c.created_at[:10]}"
+            )
+        text = "\n".join(lines)
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Back to Competitions CMS", callback_data="admin_comp_menu")]
+        ]
+    )
+    await callback.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
+

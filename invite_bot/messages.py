@@ -22,23 +22,41 @@ BTN_LEADERBOARD = "🏆 የሳምንቱ ደረጃ (Leaderboard)"
 BTN_RULES = "🎁 ሽልማቶችና ህጎች (Prizes & Rules)"
 BTN_CHANNEL = "📢 ቻናላችን (Channel)"
 
-# ── Welcome / Start Message ──────────────────────────────────────────────────
-WELCOME_TEXT = (
-    "🎉 <b>እንኳን ወደ Freshman Super Bot በደህና መጡ!</b> 🇪🇹\n"
-    "✨ <i>Developed by FreshMinds Academy</i>\n"
+# ── No Active Competition Notice ──────────────────────────────────────────────
+NO_ACTIVE_COMPETITION_TEXT = (
+    "ℹ️ <b>በአሁኑ ሰዓት ንቁ የሆነ የግብዣ ውድድር የለም።</b>\n"
     "━━━━━━━━━━━━━━━━━━━━\n"
-    "ለ 2019 ዓ.ም የ Freshman ዩኒቨርሲቲ ተማሪዎች የተዘጋጀ ሁለገብ የትምህርትና መረጃ ቦት:\n\n"
-    f"📢 <b>Official የቴሌግራም ቻናላችን:</b>\n"
-    f"👉 @{TARGET_CHANNEL}\n"
-    f"🔗 <a href=\"https://t.me/{TARGET_CHANNEL}\">https://t.me/{TARGET_CHANNEL}</a>\n"
-    "<i>(ሁሉንም ትኩስ መረጃዎች፣ የቪዲዮ ትምህርቶችና የዩኒቨርሲቲ ዜናዎች በቻናላችን ይከታተሉ — አሁኑኑ ይቀላቀሉ!)</i>\n"
-    "━━━━━━━━━━━━━━━━━━━━\n\n"
-    "📚 <b>የኮርስ ማቴሪያሎች:</b> የ 1ኛ አመት ሞጁሎች፣ የማጠቃለያ ኖቶችና ያለፉ ፈተናዎች\n"
-    "🏛️ <b>የዩኒቨርሲቲዎች መረጃ:</b> የኢትዮጵያ ዩኒቨርሲቲዎች አጠቃላይ መረጃና የካምፓስ ህይወት\n"
-    "🧮 <b>GPA ማስያ:</b> የ 1st Semester ውጤት በቀላሉ የሚያሰሉበት ልዩ ካልኩሌተር\n"
-    f"🎁 <b>ሳምንታዊ ውድድር:</b> ጓደኞችን በመጋበዝ የገንዘብና የሞባይል ካርድ ሽልማቶችን ያሸንፉ!\n\n"
-    "👇 <b>ከታች ካሉት አማራጮች የሚፈልጉትን ይምረጡ:</b>"
-)
+    "አዳዲስ ውድድሮች እና ልዩ ሽልማቶች ሲኖሩ በቻናላችን @{channel} ይፋ ይደረጋሉ!\n\n"
+    "እስከዚያው ድረስ የቦቱን የትምህርት ማቴሪያሎች፣ የ GPA ማስያ እና የዩኒቨርሲቲ መረጃዎችን በነፃ መጠቀም ይችላሉ።"
+).format(channel=TARGET_CHANNEL)
+
+
+# ── Welcome / Start Message ──────────────────────────────────────────────────
+def format_welcome_text(competition=None) -> str:
+    """Format the welcome message. Includes competition details if active, otherwise shows pure educational intro."""
+    comp_bullet = ""
+    if competition:
+        comp_bullet = f"🎁 <b>{html.escape(competition.title)}:</b> ጓደኞችን በመጋበዝ የገንዘብና የሞባይል ካርድ ሽልማቶችን ያሸንፉ! (ውድድሩ የሚያበቃው: <b>{html.escape(competition.end_date_str)}</b>)\n\n"
+
+    return (
+        "🎉 <b>እንኳን ወደ Freshman Super Bot በደህና መጡ!</b> 🇪🇹\n"
+        "✨ <i>Developed by FreshMinds Academy</i>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "ለ 2019 ዓ.ም የ Freshman ዩኒቨርሲቲ ተማሪዎች የተዘጋጀ ሁለገብ የትምህርትና መረጃ ቦት:\n\n"
+        f"📢 <b>Official የቴሌግራም ቻናላችን:</b>\n"
+        f"👉 @{TARGET_CHANNEL}\n"
+        f"🔗 <a href=\"https://t.me/{TARGET_CHANNEL}\">https://t.me/{TARGET_CHANNEL}</a>\n"
+        "<i>(ሁሉንም ትኩስ መረጃዎች፣ የቪዲዮ ትምህርቶችና የዩኒቨርሲቲ ዜናዎች በቻናላችን ይከታተሉ — አሁኑኑ ይቀላቀሉ!)</i>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "📚 <b>የኮርስ ማቴሪያሎች:</b> የ 1ኛ አመት ሞጁሎች፣ የማጠቃለያ ኖቶችና ያለፉ ፈተናዎች\n"
+        "🏛️ <b>የዩኒቨርሲቲዎች መረጃ:</b> የኢትዮጵያ ዩኒቨርሲቲዎች አጠቃላይ መረጃና የካምፓስ ህይወት\n"
+        "🧮 <b>GPA ማስያ:</b> የ 1st Semester ውጤት በቀላሉ የሚያሰሉበት ልዩ ካልኩሌተር\n"
+        f"{comp_bullet}"
+        "👇 <b>ከታች ካሉት አማራጮች የሚፈልጉትን ይምረጡ:</b>"
+    )
+
+WELCOME_TEXT = format_welcome_text()
+
 
 # ── Ethiopian MoE Grade Point Mapping ─────────────────────────────────────────
 GRADE_POINTS = {
@@ -207,16 +225,17 @@ def format_stats_card(
 
 # ── Real-Time Top 10 Leaderboard ─────────────────────────────────────────────
 def format_leaderboard(
-    top_users, my_rank: int, my_points: int, is_admin: bool = False
+    top_users, my_rank: int, my_points: int, is_admin: bool = False, competition_title: str = None
 ) -> str:
     """Renders formatted Top 10 leaderboard (clean display name for users, clickable username for admin)."""
     header_title = (
-        "👑 <b>የሳምንቱ ከፍተኛ አጋባዦች (Admin View)</b>"
+        "👑 <b>የውድድሩ ከፍተኛ አጋባዦች (Admin View)</b>"
         if is_admin
-        else "🌟 <b>የሳምንቱ ከፍተኛ አጋባዦች (Leaderboard)</b>"
+        else "🌟 <b>የውድድሩ ከፍተኛ አጋባዦች (Leaderboard)</b>"
     )
+    title = competition_title or COMPETITION_TITLE
     lines = [
-        f"🏆 <b>{COMPETITION_TITLE}</b>",
+        f"🏆 <b>{html.escape(title)}</b>",
         header_title,
         "━━━━━━━━━━━━━━━━━━━━",
     ]
@@ -250,19 +269,32 @@ def format_leaderboard(
 
 
 # ── Rules & Prizes Card ──────────────────────────────────────────────────────
-RULES_TEXT = (
-    f"🎁 <b>{COMPETITION_TITLE} — ሽልማቶችና ህጎች</b>\n"
-    "━━━━━━━━━━━━━━━━━━━━\n"
-    "🏆 <b>የሳምንቱ ከፍተኛ 4 አሸናፊዎች ሽልማት:</b>\n"
-    f"🥇 <b>1ኛ የወጣ:</b> {PRIZE_1ST}\n"
-    f"🥈 <b>2ኛ የወጣ:</b> {PRIZE_2ND}\n"
-    f"🥉 <b>3ኛ የወጣ:</b> {PRIZE_3RD}\n"
-    f"🎖️ <b>4ኛ የወጣ:</b> {PRIZE_4TH}\n\n"
-    "📜 <b>የውድድሩ ህጎች:</b>\n"
-    "1. እያንዳንዱ ተጋባዥ የእርስዎን ልዩ ሊንክ ተጠቅሞ ቻናሉን መቀላቀል አለበት።\n"
-    "2. አንድ ሰው ሊቆጠር የሚችለው አንድ ጊዜ ብቻ ነው።\n"
-    "3. ተጋባዡ ውድድሩ ሳያልቅ ቻናሉን ከለቀቀ ነጥቡ ይቀነሳል።\n"
-    "4. የውሸት አካውንቶችን (Bots/Fake Accounts) መጠቀም ከውድድሩ ያሰርዛል።\n"
-    "5. አሸናፊዎች በየሳምንቱ እሁድ ምሽት ይፋ ይደረጋሉ።\n\n"
-    "🚀 <i>አሁኑኑ መጋበዝ ጀምረው አሸናፊ ይሁኑ!</i>"
-)
+def format_rules_text(competition=None) -> str:
+    """Formats the rules & prizes text based on active competition."""
+    if not competition:
+        return NO_ACTIVE_COMPETITION_TEXT
+
+    prizes = competition.prizes_text or (
+        f"🥇 <b>1ኛ የወጣ:</b> {PRIZE_1ST}\n"
+        f"🥈 <b>2ኛ የወጣ:</b> {PRIZE_2ND}\n"
+        f"🥉 <b>3ኛ የወጣ:</b> {PRIZE_3RD}\n"
+        f"🎖️ <b>4ኛ የወጣ:</b> {PRIZE_4TH}"
+    )
+
+    return (
+        f"🎁 <b>{html.escape(competition.title)} — ሽልማቶችና ህጎች</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🏆 <b>የውድድሩ ከፍተኛ አሸናፊዎች ሽልማት:</b>\n"
+        f"{prizes}\n\n"
+        f"⏰ <b>ውድድሩ የሚያበቃው:</b> {html.escape(competition.end_date_str)}\n\n"
+        "📜 <b>የውድድሩ ህጎች:</b>\n"
+        "1. እያንዳንዱ ተጋባዥ የእርስዎን ልዩ ሊንክ ተጠቅሞ ቻናሉን መቀላቀል አለበት።\n"
+        "2. አንድ ሰው ሊቆጠር የሚችለው አንድ ጊዜ ብቻ ነው።\n"
+        "3. ተጋባዡ ውድድሩ ሳያልቅ ቻናሉን ከለቀቀ ነጥቡ ይቀነሳል።\n"
+        "4. የውሸት አካውንቶችን (Bots/Fake Accounts) መጠቀም ከውድድሩ ያሰርዛል።\n"
+        f"5. አሸናፊዎች በ {html.escape(competition.end_date_str)} ይፋ ይደረጋሉ።\n\n"
+        "🚀 <i>አሁኑኑ መጋበዝ ጀምረው አሸናፊ ይሁኑ!</i>"
+    )
+
+RULES_TEXT = format_rules_text()
+
