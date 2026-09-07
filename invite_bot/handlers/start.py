@@ -2,6 +2,7 @@
 FreshMinds Invite Competition Bot — Start & Referral Verification Handler
 """
 
+from typing import Optional
 import logging
 from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart, Command
@@ -49,38 +50,24 @@ def get_main_menu_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-def get_welcome_join_inline_markup() -> InlineKeyboardMarkup:
-    """Inline button attached to the welcome message to directly open the channel."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=f"📢 @{TARGET_CHANNEL} ቻናል ተቀላቀል (Join Channel)",
-                    url=f"https://t.me/{TARGET_CHANNEL}",
-                )
-            ]
+def get_welcome_join_inline_markup(referrer_id: Optional[int] = None) -> InlineKeyboardMarkup:
+    """Inline button attached to the welcome message to directly open the channel, plus verify button if referred."""
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                text=f"📢 @{TARGET_CHANNEL} ቻናል ተቀላቀል (Join Channel)",
+                url=f"https://t.me/{TARGET_CHANNEL}",
+            )
         ]
-    )
-
-
-def get_channel_join_markup(referrer_id: int) -> InlineKeyboardMarkup:
-    """Markup prompting user to join channel and verify referral."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=f"📢 @{TARGET_CHANNEL} ቻናል ተቀላቀል",
-                    url=f"https://t.me/{TARGET_CHANNEL}",
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="✅ ተቀላቅያለሁ አረጋግጥ (Verify Membership)",
-                    callback_data=f"verify_{referrer_id}",
-                )
-            ],
-        ]
-    )
+    ]
+    if referrer_id:
+        keyboard.append([
+            InlineKeyboardButton(
+                text="✅ ተቀላቅያለሁ አረጋግጥ (Verify Membership)",
+                callback_data=f"verify_{referrer_id}",
+            )
+        ])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
 # check_channel_membership imported from handlers.utils
@@ -142,6 +129,7 @@ async def handle_start(message: Message, bot: Bot):
         elif payload.isdigit():
             referrer_id = int(payload)
 
+    show_verify_button = False
     # If joined via a referral link and not self
     if referrer_id and referrer_id != user.id:
         is_member = await check_channel_membership(bot, user.id)
@@ -149,35 +137,20 @@ async def handle_start(message: Message, bot: Bot):
             # Already in channel -> credit immediately
             await db.clear_pending_referrer(user.id)
             await credit_and_notify_referrer(bot, referrer_id, user)
-            await message.answer(
-                f"✅ <b>ተሳትፎዎ ተረጋግጧል!</b>\n\n"
-                f"ለ <b>@{TARGET_CHANNEL}</b> ሳምንታዊ ውድድር በተሳካ ሁኔታ ተመዝግበዋል።\n"
-                "የራስዎን መጋበዣ ሊንክ አውጥተው ጓደኞችዎን በመጋበዝ አሸናፊ ይሁኑ!",
-                parse_mode=ParseMode.HTML,
-                reply_markup=get_main_menu_keyboard(),
-            )
-            return
         else:
-            # Store pending referral so when user joins channel, tracker auto-credits referrer
+            # Store pending referral so when user joins channel (or clicks verify), tracker auto-credits referrer
             await db.set_pending_referrer(user.id, referrer_id)
+            show_verify_button = True
 
-            # Prompt to join channel first
-            await message.answer(
-                f"👋 <b>እንኳን ወደ {msg.COMPETITION_TITLE} በደህና መጡ!</b>\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                f"ተሳትፎዎን ለማረጋገጥ እና ለጋባዥዎ ነጥብ ለማስመዝገብ እባክዎ መጀመሪያ <b>@{TARGET_CHANNEL}</b> ቻናልን ይቀላቀሉ:\n\n"
-                "👇 ከታች <b>'ቻናል ተቀላቀል'</b> የሚለውን ተጭነው ከገቡ በኋላ <b>'ተቀላቅያለሁ አረጋግጥ'</b> የሚለውን ይጫኑ!",
-                parse_mode=ParseMode.HTML,
-                reply_markup=get_channel_join_markup(referrer_id),
-                disable_web_page_preview=True,
-            )
-            return
+    # Standard Welcome — shown to EVERY user with full buttons and full features!
+    inline_markup = get_welcome_join_inline_markup(
+        referrer_id=referrer_id if show_verify_button else None
+    )
 
-    # Standard Welcome
     await message.answer(
         msg.WELCOME_TEXT,
         parse_mode=ParseMode.HTML,
-        reply_markup=get_welcome_join_inline_markup(),
+        reply_markup=inline_markup,
         disable_web_page_preview=True,
     )
     await message.answer(
@@ -215,26 +188,38 @@ async def handle_verify_callback(callback: CallbackQuery, bot: Bot):
     await credit_and_notify_referrer(bot, referrer_id, user)
 
     try:
-        await callback.message.edit_text(
-            f"🎉 <b>ተሳትፎዎ በሚገባ ተረጋግጧል!</b>\n\n"
-            f"የ <b>@{TARGET_CHANNEL}</b> ቤተሰብ ስለሆኑ እናመሰግናለን!\n"
-            "እርስዎም የራስዎን መጋበዣ ሊንክ አውጥተው ጓደኞችዎን በመጋበዝ ሽልማቶችን ያሸንፉ! 👇",
-            parse_mode=ParseMode.HTML,
+        await callback.message.edit_reply_markup(
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text=f"📢 @{TARGET_CHANNEL} ቻናል (Official)",
+                            url=f"https://t.me/{TARGET_CHANNEL}",
+                        )
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            text="✅ የተረጋገጠ አባል (Verified Member)",
+                            callback_data="verified_noop",
+                        )
+                    ],
+                ]
+            )
         )
     except Exception:
         pass
 
     await callback.message.answer(
-        msg.WELCOME_TEXT,
+        f"🎉 <b>ተሳትፎዎ በሚገባ ተረጋግጧል!</b>\n\n"
+        f"የ <b>@{TARGET_CHANNEL}</b> ቤተሰብ ስለሆኑ እናመሰግናለን!\n"
+        "የቦቱን የኮርስ ማቴሪያሎች፣ የዩኒቨርሲቲዎች መረጃ እና የ GPA ማስያ አገልግሎቶችን ከታች ካሉት ቁልፎች መጠቀም ይችላሉ።",
         parse_mode=ParseMode.HTML,
-        reply_markup=get_welcome_join_inline_markup(),
-        disable_web_page_preview=True,
     )
-    await callback.message.answer(
-        "👇 <b>ከታች ያሉትን የቦቱን አገልግሎቶች ይጠቀሙ:</b>",
-        parse_mode=ParseMode.HTML,
-        reply_markup=get_main_menu_keyboard(),
-    )
+
+
+@router.callback_query(F.data == "verified_noop")
+async def cb_verified_noop(callback: CallbackQuery):
+    await callback.answer("✅ የቻናላችን ቤተሰብ ስለሆኑ እናመሰግናለን!", show_alert=False)
 
 
 @router.message(Command("help"))

@@ -14,8 +14,11 @@ from aiogram.types import (
 )
 from aiogram.enums import ParseMode
 from database import db
-from config import TARGET_CHANNEL
-from handlers.utils import check_channel_membership
+from handlers.utils import (
+    check_channel_membership,
+    check_and_credit_membership,
+    send_feature_lock_message,
+)
 import messages as msg
 
 logger = logging.getLogger(__name__)
@@ -64,21 +67,19 @@ def build_course_categories_keyboard(course_id: int) -> InlineKeyboardMarkup:
     )
 
 
-@router.message(F.text == msg.BTN_RESOURCES)
-@router.message(Command("resources"))
-@router.message(Command("courses"))
-@router.message(Command("materials"))
-async def handle_resources_menu(message: Message):
-    """Entry point for browsing freshman courses and materials."""
+async def show_courses_list(target: Message | CallbackQuery):
+    """Renders the course selection list."""
     courses = await db.get_all_courses()
-
     if not courses:
-        await message.answer(
+        text = (
             "📚 <b>የኮርስ ማቴሪያሎች ማዕከል</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "<i>ይቅርታ፣ እስካሁን ምንም ኮርስ አልተመዘገበም።</i>",
-            parse_mode=ParseMode.HTML,
+            "<i>ይቅርታ፣ እስካሁን ምንም ኮርስ አልተመዘገበም።</i>"
         )
+        if isinstance(target, CallbackQuery):
+            await target.message.edit_text(text, parse_mode=ParseMode.HTML)
+        else:
+            await target.answer(text, parse_mode=ParseMode.HTML)
         return
 
     text = (
@@ -87,13 +88,42 @@ async def handle_resources_menu(message: Message):
         "የሚፈልጉትን ኮርስ በመጫን <b>ሞጁሎች፣ ማጠቃለያ ኖቶች፣ የፈተና ሞዴሎች እና ቪዲዮዎችን</b> በነፃ ያግኙ:\n\n"
         "👇 <b>ኮርስ ይምረጡ:</b>"
     )
+    if isinstance(target, CallbackQuery):
+        await target.message.edit_text(
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=build_courses_keyboard(courses),
+            disable_web_page_preview=True,
+        )
+    else:
+        await target.answer(
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=build_courses_keyboard(courses),
+            disable_web_page_preview=True,
+        )
 
-    await message.answer(
-        text,
-        parse_mode=ParseMode.HTML,
-        reply_markup=build_courses_keyboard(courses),
-        disable_web_page_preview=True,
-    )
+
+@router.message(F.text == msg.BTN_RESOURCES)
+@router.message(Command("resources"))
+@router.message(Command("courses"))
+@router.message(Command("materials"))
+async def handle_resources_menu(message: Message, bot: Bot):
+    """Entry point for browsing freshman courses and materials — gates with channel membership."""
+    if not await check_and_credit_membership(bot, message.from_user):
+        await send_feature_lock_message(message, "📚 የኮርስ ማቴሪያሎችን", "retry_feature_resources")
+        return
+    await show_courses_list(message)
+
+
+@router.callback_query(F.data == "retry_feature_resources")
+async def handle_retry_resources(callback: CallbackQuery, bot: Bot):
+    """Retry handler for resources after user joins channel."""
+    if not await check_and_credit_membership(bot, callback.from_user):
+        await callback.answer("⚠️ እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ!", show_alert=True)
+        return
+    await callback.answer("✅ ተረጋግጧል!", show_alert=False)
+    await show_courses_list(callback)
 
 
 @router.callback_query(F.data.startswith("course_view_"))

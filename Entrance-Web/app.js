@@ -12,8 +12,8 @@ const translations = {
   am: {
     lang_btn: '🇬🇧 English',
     join_channel_btn: 'ቻናል ተቀላቀል',
-    badge_text: 'የ 2018 ዓ.ም የፈተና ውጤት መመልከቻ',
-    hero_heading: 'የ 2018 ዓ.ም የመግቢያ ፈተና ውጤትህን/ሽን ፈትሽ',
+    badge_text: 'የ 2019 ዓ.ም የፈተና ውጤት መመልከቻ',
+    hero_heading: 'የ 2019 ዓ.ም የመግቢያ ፈተና ውጤትህን/ሽን ፈትሽ',
     hero_subheading: 'የምዝገባ ቁጥርህን/ሽን እና የመጀመሪያ ስምህን/ሽን በማስገባት ፈጣን ውጤት ተመልከት',
     label_admission: 'የምዝገባ ቁጥር (Admission No)',
     hint_admission: 'ቁጥሮችን ብቻ ያስገቡ (ለምሳሌ 347484)',
@@ -28,7 +28,7 @@ const translations = {
     th_score: 'ውጤት (Score)',
     btn_check_another: '🔄 ሌላ ውጤት ፈልግ',
     btn_join_telegram: 'የ Freshman ትምህርቶችን ተቀላቀል',
-    notice_not_released_title: 'የ 2018 ዓ.ም ውጤት ገና አልተለቀቀም!',
+    notice_not_released_title: 'የ 2019 ዓ.ም ውጤት ገና አልተለቀቀም!',
     notice_not_released_desc: 'የፈተና ውጤት ሲለቀቅ ወዲያውኑ በቴሌግራም ቻናላችን እናሳውቃለን። ቻናላችንን ተቀላቀሉ!',
     notice_not_found_title: 'ተማሪ አልተገኘም (Student Not Found)',
     notice_not_found_desc: 'ያስገቡት የምዝገባ ቁጥር ወይም ስም አልተገኘም። እባክዎ በትክክል መጻፉን አረጋግጠው ደግመው ይሞክሩ።',
@@ -36,7 +36,7 @@ const translations = {
     notice_error_desc: 'የውጤት ሰርቨሩ በከፍተኛ መጨናነቅ ላይ ሊሆን ይችላል። እባክዎ ከጥቂት ደቂቃዎች በኋላ ደግመው ይሞክሩ።',
     btn_join_freshminds: 'Join @freshminds_academy',
     btn_try_again: '🔄 ደግመው ይሞክሩ (Try Again)',
-    promo_badge: 'Freshman Prep 2018 E.C.',
+    promo_badge: 'Freshman Prep 2019 E.C.',
     promo_title: 'ለዩኒቨርሲቲ Freshman ህይወትህ/ሽ ተዘጋጅተሃል/ሻል?',
     promo_desc: 'ነፃ የ Freshman ኮርሶች፣ የትምህርት ማቴሪያሎች፣ እና የዩኒቨርሲቲ ምደባ መረጃዎችን በ FreshMinds Academy ያግኙ።',
     pass_title: 'እንኳን ደስ አለዎት! ፈተናውን አልፈዋል!',
@@ -48,8 +48,8 @@ const translations = {
   en: {
     lang_btn: '🇪🇹 አማርኛ',
     join_channel_btn: 'Join Channel',
-    badge_text: 'EAES 2018 E.C. Result Portal',
-    hero_heading: 'Check Your 2018 E.C. Entrance Exam Result',
+    badge_text: 'EAES 2019 E.C. Result Portal',
+    hero_heading: 'Check Your 2019 E.C. Entrance Exam Result',
     hero_subheading: 'Enter your Admission Number and First Name to view your official score card',
     label_admission: 'Admission Number',
     hint_admission: 'Enter numeric digits only (e.g. 347484)',
@@ -64,7 +64,7 @@ const translations = {
     th_score: 'Score',
     btn_check_another: '🔄 Check Another Result',
     btn_join_telegram: 'Join Freshman Prep Channel',
-    notice_not_released_title: '2018 E.C. Results Not Released Yet!',
+    notice_not_released_title: '2019 E.C. Results Not Released Yet!',
     notice_not_released_desc: 'Results have not been officially published by EAES. We will broadcast live on our Telegram channel the moment they drop!',
     notice_not_found_title: 'Student Record Not Found',
     notice_not_found_desc: 'No student found with the provided admission number and name. Please verify your details and try again.',
@@ -72,7 +72,7 @@ const translations = {
     notice_error_desc: 'The result server is experiencing high traffic. Please try again in a few moments.',
     btn_join_freshminds: 'Join @freshminds_academy',
     btn_try_again: '🔄 Try Again',
-    promo_badge: 'Freshman Prep 2018 E.C.',
+    promo_badge: 'Freshman Prep 2019 E.C.',
     promo_title: 'Ready for Your University Freshman Journey?',
     promo_desc: 'Access free freshman courses, university exam models, and departmental preparation on FreshMinds Academy.',
     pass_title: 'Congratulations! You Passed!',
@@ -383,7 +383,7 @@ function generateStoryCard(student, results, avgVal, totalVal) {
 
   ctx.font = 'bold 44px Outfit, Inter, sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText('2018 E.C. ENTRANCE RESULT', 540, 230);
+  ctx.fillText('2019 E.C. ENTRANCE RESULT', 540, 230);
 
   // 5. Celebration Gold / Emerald Badge (or Scorecard Badge)
   const isPassed = avgVal >= 50.0;
@@ -403,7 +403,7 @@ function generateStoryCard(student, results, avgVal, totalVal) {
 
   ctx.font = 'bold 34px Outfit, Inter, sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(isPassed ? '🌟 UNIVERSITY ENTRANCE PASSED 🌟' : '🎓 OFFICIAL 2018 ESSLCE RESULT 🎓', 540, 334);
+  ctx.fillText(isPassed ? '🌟 UNIVERSITY ENTRANCE PASSED 🌟' : '🎓 OFFICIAL 2019 ESSLCE RESULT 🎓', 540, 334);
 
   // 6. Student Info Glass Card
   ctx.fillStyle = 'rgba(25, 33, 64, 0.75)';

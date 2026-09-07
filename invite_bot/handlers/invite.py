@@ -42,16 +42,10 @@ def get_share_keyboard(invite_link: str) -> InlineKeyboardMarkup:
     )
 
 
-@router.message(F.text == msg.BTN_GET_LINK)
-@router.message(Command("link"))
-@router.message(Command("invite"))
-@router.message(Command("newlink"))
-async def handle_get_link(message: Message, bot: Bot):
-    """Generate or retrieve bulletproof bot referral deep link (t.me/Bot?start=ref_...)."""
-    user = message.from_user
-    if not user:
-        return
+from handlers.utils import check_and_credit_membership, send_feature_lock_message
 
+async def generate_and_send_link(target: Message | CallbackQuery, bot: Bot, user):
+    """Generates and sends the referral link and promo post to the user."""
     # 1. Fetch user from DB
     await db.get_or_create_user(
         user_id=user.id,
@@ -67,18 +61,48 @@ async def handle_get_link(message: Message, bot: Bot):
 
     # 3. Send Ready-to-Forward Promotional Marketing Post
     promo_post = msg.format_promotional_post(invite_link)
-    await message.answer(
-        promo_post,
+    link_card = msg.format_link_card(invite_link)
+
+    chat_id = target.chat.id if isinstance(target, Message) else target.message.chat.id
+
+    await bot.send_message(
+        chat_id=chat_id,
+        text=promo_post,
         parse_mode=ParseMode.HTML,
         disable_web_page_preview=True,
     )
-
-    # 4. Send 1-Tap Copyable Link Card with Share Button
-    link_card = msg.format_link_card(invite_link)
-    await message.answer(
-        link_card,
+    await bot.send_message(
+        chat_id=chat_id,
+        text=link_card,
         parse_mode=ParseMode.HTML,
         reply_markup=get_share_keyboard(invite_link),
         disable_web_page_preview=True,
     )
+
+
+@router.message(F.text == msg.BTN_GET_LINK)
+@router.message(Command("link"))
+@router.message(Command("invite"))
+@router.message(Command("newlink"))
+async def handle_get_link(message: Message, bot: Bot):
+    """Generate or retrieve bulletproof bot referral deep link — gated behind channel membership."""
+    user = message.from_user
+    if not user:
+        return
+
+    if not await check_and_credit_membership(bot, user):
+        await send_feature_lock_message(message, "🔗 የመጋበዣ ሊንክ ማውጫን", "retry_feature_link")
+        return
+
+    await generate_and_send_link(message, bot, user)
+
+
+@router.callback_query(F.data == "retry_feature_link")
+async def handle_retry_link(callback: CallbackQuery, bot: Bot):
+    """Retry handler for referral link generation after user joins channel."""
+    if not await check_and_credit_membership(bot, callback.from_user):
+        await callback.answer("⚠️ እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ!", show_alert=True)
+        return
+    await callback.answer("✅ ተረጋግጧል!", show_alert=False)
+    await generate_and_send_link(callback, bot, callback.from_user)
 

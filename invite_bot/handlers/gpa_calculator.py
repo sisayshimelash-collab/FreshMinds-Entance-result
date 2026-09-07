@@ -3,7 +3,7 @@ FreshMinds GPA Calculator — Interactive Course-1 to Course-8 Live Table
 """
 
 import logging
-from aiogram import Router, F
+from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.types import (
     Message,
@@ -13,6 +13,7 @@ from aiogram.types import (
 )
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
+from handlers.utils import check_and_credit_membership, send_feature_lock_message
 import messages as msg
 
 logger = logging.getLogger(__name__)
@@ -114,17 +115,9 @@ def build_course_editor_keyboard(user_id: int, course_idx: int) -> InlineKeyboar
     )
 
 
-@router.message(F.text == msg.BTN_GPA_CALC)
-@router.message(Command("gpa"))
-@router.message(Command("calculator"))
-async def handle_gpa_calculator(message: Message):
-    """Entry point for the interactive GPA Calculator."""
-    user = message.from_user
-    if not user:
-        return
-
-    # Initialize courses
-    courses = get_user_courses(user.id)
+async def show_gpa_table(target: Message | CallbackQuery, user_id: int):
+    """Renders the GPA table."""
+    courses = get_user_courses(user_id)
     filled_count = sum(1 for c in courses.values() if c.get("ch") and c.get("grade"))
 
     text = (
@@ -136,12 +129,46 @@ async def handle_gpa_calculator(message: Message):
         f"📝 በአሁኑ ሰዓት የተሞሉ ኮርሶች: <b>{filled_count} / 8</b>"
     )
 
-    await message.answer(
-        text,
-        parse_mode=ParseMode.HTML,
-        reply_markup=build_gpa_table_keyboard(user.id),
-        disable_web_page_preview=True,
-    )
+    if isinstance(target, CallbackQuery):
+        await target.message.edit_text(
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=build_gpa_table_keyboard(user_id),
+            disable_web_page_preview=True,
+        )
+    else:
+        await target.answer(
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=build_gpa_table_keyboard(user_id),
+            disable_web_page_preview=True,
+        )
+
+
+@router.message(F.text == msg.BTN_GPA_CALC)
+@router.message(Command("gpa"))
+@router.message(Command("calculator"))
+async def handle_gpa_calculator(message: Message, bot: Bot):
+    """Entry point for the interactive GPA Calculator — gated behind channel membership."""
+    user = message.from_user
+    if not user:
+        return
+
+    if not await check_and_credit_membership(bot, user):
+        await send_feature_lock_message(message, "🧮 የ GPA ማስያን", "retry_feature_gpa")
+        return
+
+    await show_gpa_table(message, user.id)
+
+
+@router.callback_query(F.data == "retry_feature_gpa")
+async def handle_retry_gpa(callback: CallbackQuery, bot: Bot):
+    """Retry handler for GPA calculator after user joins channel."""
+    if not await check_and_credit_membership(bot, callback.from_user):
+        await callback.answer("⚠️ እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ!", show_alert=True)
+        return
+    await callback.answer("✅ ተረጋግጧል!", show_alert=False)
+    await show_gpa_table(callback, callback.from_user.id)
 
 
 @router.callback_query(F.data.startswith("gpa_edit_"))

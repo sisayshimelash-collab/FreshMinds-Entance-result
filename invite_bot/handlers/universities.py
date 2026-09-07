@@ -13,8 +13,11 @@ from aiogram.types import (
 )
 from aiogram.enums import ParseMode
 from database import db
-from config import TARGET_CHANNEL
-from handlers.utils import check_channel_membership
+from handlers.utils import (
+    check_channel_membership,
+    check_and_credit_membership,
+    send_feature_lock_message,
+)
 import messages as msg
 
 logger = logging.getLogger(__name__)
@@ -32,20 +35,19 @@ def build_universities_list_keyboard(universities: list) -> InlineKeyboardMarkup
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-@router.message(F.text == msg.BTN_UNIVERSITIES)
-@router.message(Command("universities"))
-@router.message(Command("uni"))
-async def handle_universities_list(message: Message):
-    """Displays the list of universities."""
+async def show_universities_list(target: Message | CallbackQuery):
+    """Renders the university directory list."""
     universities = await db.get_all_universities()
-
     if not universities:
-        await message.answer(
+        text = (
             "🏛️ <b>የዩኒቨርሲቲዎች መረጃ ማዕከል</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "<i>ይቅርታ፣ እስካሁን ምንም ዩኒቨርሲቲ አልተመዘገበም።</i>",
-            parse_mode=ParseMode.HTML,
+            "<i>ይቅርታ፣ እስካሁን ምንም ዩኒቨርሲቲ አልተመዘገበም።</i>"
         )
+        if isinstance(target, CallbackQuery):
+            await target.message.edit_text(text, parse_mode=ParseMode.HTML)
+        else:
+            await target.answer(text, parse_mode=ParseMode.HTML)
         return
 
     text = (
@@ -55,13 +57,41 @@ async def handle_universities_list(message: Message):
         "የሚፈልጉትን ዩኒቨርሲቲ ይጫኑ:\n\n"
         f"📍 የተመዘገቡ ዩኒቨርሲቲዎች: <b>{len(universities)}</b>"
     )
+    if isinstance(target, CallbackQuery):
+        await target.message.edit_text(
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=build_universities_list_keyboard(universities),
+            disable_web_page_preview=True,
+        )
+    else:
+        await target.answer(
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=build_universities_list_keyboard(universities),
+            disable_web_page_preview=True,
+        )
 
-    await message.answer(
-        text,
-        parse_mode=ParseMode.HTML,
-        reply_markup=build_universities_list_keyboard(universities),
-        disable_web_page_preview=True,
-    )
+
+@router.message(F.text == msg.BTN_UNIVERSITIES)
+@router.message(Command("universities"))
+@router.message(Command("uni"))
+async def handle_universities_list(message: Message, bot: Bot):
+    """Displays the list of universities — gated behind channel membership."""
+    if not await check_and_credit_membership(bot, message.from_user):
+        await send_feature_lock_message(message, "🏛️ የዩኒቨርሲቲዎች መረጃን", "retry_feature_universities")
+        return
+    await show_universities_list(message)
+
+
+@router.callback_query(F.data == "retry_feature_universities")
+async def handle_retry_universities(callback: CallbackQuery, bot: Bot):
+    """Retry handler for universities after user joins channel."""
+    if not await check_and_credit_membership(bot, callback.from_user):
+        await callback.answer("⚠️ እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ!", show_alert=True)
+        return
+    await callback.answer("✅ ተረጋግጧል!", show_alert=False)
+    await show_universities_list(callback)
 
 
 @router.callback_query(F.data.startswith("uni_view_"))

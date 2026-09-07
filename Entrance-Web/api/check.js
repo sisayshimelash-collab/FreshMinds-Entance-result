@@ -169,7 +169,7 @@ module.exports = async function handler(req, res) {
   if (now < globalNotReleasedUntil) {
     return res.status(200).json({
       status: 'not_released',
-      message: globalNotReleasedMsg || 'Results for 2018 E.C. have not been released yet.',
+      message: globalNotReleasedMsg || 'Results for 2019 E.C. have not been released yet.',
       from_cache: true,
     });
   }
@@ -230,7 +230,7 @@ module.exports = async function handler(req, res) {
 
     // 423 Locked: Not Released Yet
     if (eaesResp.statusCode === 423) {
-      let detail = 'The 2018 result is not released.';
+      let detail = 'The 2019 result is not released.';
       try {
         const errData = JSON.parse(eaesResp.body);
         if (errData.detail) detail = errData.detail;

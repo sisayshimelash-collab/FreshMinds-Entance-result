@@ -115,8 +115,8 @@ def format_result_success(student, results) -> str:
 # ── Result Status Errors ──────────────────────────────────────────────────────
 
 RESULT_NOT_RELEASED = (
-    "⏳ <b>የ2018 ዓ.ም. ውጤት ገና አልተለቀቀም!</b>\n"
-    "<i>The 2018 E.C. results are not released yet.</i>\n\n"
+    "⏳ <b>የ2019 ዓ.ም. ውጤት ገና አልተለቀቀም!</b>\n"
+    "<i>The 2019 E.C. results are not released yet.</i>\n\n"
     f"📢 <b>ውጤቱ ሲለቀቅ ወዲያውኑ በቻናላችን እናሳውቃለን:</b>\n"
     f"👉 @{FRESHMINDS_CHANNEL}"
 )
