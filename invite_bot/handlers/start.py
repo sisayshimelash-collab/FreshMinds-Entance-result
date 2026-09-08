@@ -144,11 +144,15 @@ async def handle_start(message: Message, bot: Bot):
     if referrer_id and referrer_id != user.id:
         is_member = await check_channel_membership(bot, user.id)
         if is_member:
-            # Already in channel -> credit immediately
+            # User is ALREADY a member/admin of the channel before clicking this link!
+            # They must NOT be counted as a new invite.
             await db.clear_pending_referrer(user.id)
-            await credit_and_notify_referrer(bot, referrer_id, user)
+            logger.info(
+                f"Referral ignored: User {user.id} is already an existing member/admin of the channel."
+            )
         else:
-            # Store pending referral so when user joins channel (or clicks verify), tracker auto-credits referrer
+            # User is genuinely NOT in the channel -> set pending referrer
+            # They will only be credited when they actually join the channel!
             await db.set_pending_referrer(user.id, referrer_id)
             show_verify_button = True
 
@@ -194,10 +198,20 @@ async def handle_verify_callback(callback: CallbackQuery, bot: Bot):
         )
         return
 
-    # Successfully verified
+    # Anti-cheat check: ensure user actually had a pending referral recorded
+    pending_ref = await db.get_pending_referrer(user.id)
+    if not pending_ref or pending_ref != referrer_id:
+        await callback.answer(
+            "ℹ️ ቀድመው የቻናላችን አባል ስለነበሩ ይህ ግብዣ ለውድድር አይቆጠርም። እናመሰግናለን!",
+            show_alert=True,
+        )
+        return
+
+    # Successfully verified genuine new join
     await callback.answer("✅ ተሳትፎዎ ተረጋግጧል! እናመሰግናለን።", show_alert=True)
     await db.clear_pending_referrer(user.id)
     await credit_and_notify_referrer(bot, referrer_id, user)
+
 
     try:
         await callback.message.edit_reply_markup(

@@ -36,11 +36,16 @@ async def check_and_credit_membership(bot: Bot, user) -> bool:
         pending_ref = await db.get_pending_referrer(user.id)
         if pending_ref:
             await db.clear_pending_referrer(user.id)
+            comp = await db.get_active_competition()
+            if not comp:
+                return is_member
+
             credited = await db.record_referral(
                 referrer_id=pending_ref,
                 referred_user_id=user.id,
                 invite_link=f"bot_deep_link_{pending_ref}",
             )
+
             if credited:
                 active_points, total_joins, rank = await db.get_user_stats(pending_ref)
                 try:
