@@ -53,17 +53,21 @@ async def test_database_and_cache():
 
 async def test_placement_client_live():
     print("\n--- 2. Testing Live Placement API Client ---")
-    # Test with sample registration number
-    test_reg = "00052454"
-    print(f"Querying live EtherNet endpoint for: {test_reg}...")
-    result = await placement_client.query_placement(test_reg)
+    # Test with sample registration number and first name
+    test_reg = "00176600"
+    test_first_name = "ruth"
+    print(f"Querying live EtherNet endpoint for: {test_reg} / {test_first_name}...")
+    result = await placement_client.query_placement(test_reg, test_first_name)
     print(f"Status returned: {result.status}")
     if result.status == "NOT_FOUND":
-        print("✅ Expected 404 handled gracefully (Placements not released yet).")
+        print("✅ Expected 404/NOT_FOUND handled gracefully.")
+    elif result.status == "RATE_LIMIT":
+        print("✅ Expected Rate Limit (429) response handled gracefully.")
     elif result.status == "SUCCESS":
         print(f"🎉 Live result received: {result.student_name} -> {result.university}")
     else:
         print(f"ℹ️ Status ({result.status}): {result.error_message}")
+
 
 
 async def test_admin_placement_toggle():

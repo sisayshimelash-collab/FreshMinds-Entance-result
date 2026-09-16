@@ -305,8 +305,15 @@ RULES_TEXT = format_rules_text()
 PLACEMENT_PROMPT_TEXT = (
     "🎓 <b>የትምህርት ሚኒስቴር የዩኒቨርሲቲ ምደባ ማወቂያ</b>\n"
     "━━━━━━━━━━━━━━━━━━━━\n"
-    "የተመደቡበትን ዩኒቨርሲቲ ለማወቅ እባክዎ የፈተና መለያ ቁጥርዎን (Admission / Registration Number) ያስገቡ:\n\n"
-    "<i>ለምሳሌ: <code>00052454</code> ወይም <code>1234567</code></i>\n\n"
+    "የተመደቡበትን ዩኒቨርሲቲ ለማወቅ እባክዎ <b>የፈተና መለያ ቁጥርዎን (Registration / Admission Number)</b> ያስገቡ:\n\n"
+    "<i>ለምሳሌ: <code>00176600</code> ወይም <code>00052454</code></i>\n\n"
+    "❌ ለመሰረዝ <b>/cancel</b> ብለው ይጻፉ።"
+)
+
+PLACEMENT_FIRST_NAME_PROMPT_TEXT = (
+    "👤 <b>አሁን ደግሞ የመጀመሪያ ስምዎን (First Name) ያስገቡ:</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "<i>ለምሳሌ: <code>Ruth</code> ወይም <code>Abebe</code></i>\n\n"
     "❌ ለመሰረዝ <b>/cancel</b> ብለው ይጻፉ።"
 )
 
@@ -314,9 +321,9 @@ PLACEMENT_NOT_RELEASED_TEXT = (
     "❌ <b>ለመለያ ቁጥር <code>{reg_no}</code> የተገኘ ምደባ የለም!</b>\n"
     "━━━━━━━━━━━━━━━━━━━━\n"
     "💡 <b>ሊሆኑ የሚችሉ ምክንያቶች:</b>\n"
-    "1. ተማሪዎች አሁንም የዩኒቨርሲቲ ምርጫ (Choosing Stage) ላይ ስለሆኑ የ 2019 ዓ.ም ምደባ በትምህርት ሚኒስቴር እስካሁን ይፋ አልተደረገም።\n"
-    "2. ያስገቡት መለያ ቁጥር የተሳሳተ ሊሆን ይችላል (እባክዎ ቁጥሩን ያረጋግጡ)።\n\n"
-    "📢 <i>የትምህርት ሚኒስቴር ምደባውን ይፋ እንዳደረገ ወዲያውኑ በቦታችን ማየት ይችላሉ!</i>"
+    "1. ያስገቡት መለያ ቁጥር ወይም የመጀመሪያ ስም የተሳሳተ ሊሆን ይችላል።\n"
+    "2. በትምህርት ሚኒስቴር የዚህ ተማሪ ምደባ አልተመደበም ሊሆን ይችላል።\n\n"
+    "🔄 እባክዎ ቁጥሩንና ስሙን አረጋግጠው በድጋሚ ይሞክሩ።"
 )
 
 PLACEMENT_SERVER_BUSY_TEXT = (
@@ -326,25 +333,42 @@ PLACEMENT_SERVER_BUSY_TEXT = (
     "🔄 እባክዎ ከጥቂት ደቂቃዎች በኋላ እንደገና ይሞክሩ።"
 )
 
+PLACEMENT_RATE_LIMIT_TEXT = (
+    "⚠️ <b>የጥያቄ ብዛት በዝቷል (Rate Limit)!</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "በትምህርት ሚኒስቴር ሰርቨር ላይ ከፍተኛ ጥያቄ እየቀረበ ስለሆነ እባክዎ ጥቂት ሰከንዶች ቆይተው እንደገና ይሞክሩ።"
+)
+
 
 def format_placement_card(
     student_name: str,
     reg_number: str,
     university: str,
     stream: str,
+    school_name: str = "N/A",
+    region_name: str = "N/A",
+    total_score: str = "N/A",
     cached: bool = False,
 ) -> str:
     """Formats student placement result card in clean HTML."""
     badge = " <i>(የተቀመጠ መረጃ)</i>" if cached else ""
+    school_info = f"🏫 <b>ትምህርት ቤት:</b> {html.escape(school_name)}\n" if school_name and school_name != "N/A" else ""
+    region_info = f"📍 <b>ክልል:</b> {html.escape(region_name)}\n" if region_name and region_name != "N/A" else ""
+    score_info = f"📊 <b>የፈተና ውጤት:</b> <b>{html.escape(total_score)}</b>\n" if total_score and total_score != "N/A" else ""
+
     return (
         f"🎓 <b>የትምህርት ሚኒስቴር የዩኒቨርሲቲ ምደባ ውጤት</b>{badge}\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         f"👤 <b>የተማሪው ስም:</b> {html.escape(student_name)}\n"
         f"🔢 <b>መለያ ቁጥር:</b> <code>{html.escape(reg_number)}</code>\n"
         f"🏛️ <b>የተመደቡበት ዩኒቨርሲቲ:</b> <b>{html.escape(university)}</b>\n"
-        f"📚 <b>የትምህርት መስክ:</b> {html.escape(stream)}\n"
+        f"📚 <b>የተመደቡበት ዘርፍ:</b> {html.escape(stream)}\n"
+        f"{score_info}"
+        f"{school_info}"
+        f"{region_info}"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "✨ <i>እንኳን ደስ አላችሁ! ለካምፓስ ህይወትዎ እና ለ 1st Year ውጤታማነትዎ ከጎንዎ ነን!</i>"
     )
+
 
 

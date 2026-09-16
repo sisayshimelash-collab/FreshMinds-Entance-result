@@ -1,7 +1,7 @@
 """
 FreshMinds Placement Client — Asynchronous EtherNet Placement API Consumer
 Directly connects to Ethiopian Ministry of Education Placement Endpoint:
-https://placement.ethernet.edu.et/api/student/
+https://student.ethernet.edu.et/api/v1/portal/placement/lookup
 """
 
 import aiohttp
@@ -12,15 +12,18 @@ from typing import Optional, Dict, Any, NamedTuple
 
 logger = logging.getLogger(__name__)
 
-PLACEMENT_ENDPOINT = "https://placement.ethernet.edu.et/api/student/"
+PLACEMENT_ENDPOINT = "https://student.ethernet.edu.et/api/v1/portal/placement/lookup"
 
 
 class PlacementResult(NamedTuple):
-    status: str  # 'SUCCESS', 'NOT_FOUND', 'SERVER_BUSY', 'TIMEOUT', 'ERROR'
+    status: str  # 'SUCCESS', 'NOT_FOUND', 'RATE_LIMIT', 'SERVER_BUSY', 'TIMEOUT', 'ERROR'
     admission_no: str
     student_name: Optional[str] = None
     university: Optional[str] = None
     stream: Optional[str] = None
+    school_name: Optional[str] = None
+    region_name: Optional[str] = None
+    total_score: Optional[str] = None
     raw_data: Optional[Dict[str, Any]] = None
     error_message: Optional[str] = None
 
@@ -28,7 +31,7 @@ class PlacementResult(NamedTuple):
 class PlacementClient:
     """Async HTTP Client for EtherNet University Placement Lookup."""
 
-    def __init__(self, timeout_seconds: int = 12):
+    def __init__(self, timeout_seconds: int = 15):
         self.timeout = aiohttp.ClientTimeout(total=timeout_seconds)
         self.headers = {
             "User-Agent": (
@@ -36,22 +39,26 @@ class PlacementClient:
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/128.0.0.0 Safari/537.36"
             ),
-            "Origin": "https://placement.ethernet.edu.et",
-            "Referer": "https://placement.ethernet.edu.et/",
+            "Origin": "https://student.ethernet.edu.et",
+            "Referer": "https://student.ethernet.edu.et/view-placement",
+            "X-Requested-With": "XMLHttpRequest",
             "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json",
         }
 
-    async def query_placement(self, admission_no: str) -> PlacementResult:
+    async def query_placement(self, admission_no: str, first_name: str) -> PlacementResult:
         """
-        Queries student placement by registration / admission number.
-        Sends FormData as discovered in browser DevTools:
-          - registration_number: <id>
-          - g-recaptcha-response: ""
+        Queries student placement by registration / admission number and first name.
+        Sends JSON body:
+          - registrationNumber: <id>
+          - firstName: <name>
         """
         clean_reg = admission_no.strip()
-        data = aiohttp.FormData()
-        data.add_field("registration_number", clean_reg)
-        data.add_field("g-recaptcha-response", "")
+        clean_first_name = first_name.strip()
+        payload_data = {
+            "registrationNumber": clean_reg,
+            "firstName": clean_first_name,
+        }
 
         try:
             async with aiohttp.ClientSession(
@@ -60,8 +67,8 @@ class PlacementClient:
             ) as session:
                 async with session.post(
                     PLACEMENT_ENDPOINT,
-                    data=data,
-                    ssl=False,  # Avoid SSL renegotiation/handshake issues on Ethiopian servers
+                    json=payload_data,
+                    ssl=False,  # Avoid SSL issues on Ministry servers
                 ) as resp:
                     status_code = resp.status
 
@@ -75,33 +82,67 @@ class PlacementClient:
                             except Exception:
                                 payload = {"raw": text}
 
-                        # Extract name and university from various common MoE JSON keys
+                        if not isinstance(payload, dict):
+                            payload = {}
+
+                        # Extract fields returned by student.ethernet.edu.et API
+                        fn = payload.get("firstName") or ""
+                        mn = payload.get("middleName") or ""
+                        ln = payload.get("lastName") or ""
+                        name_parts = [fn, mn, ln]
+                        constructed_name = " ".join(p for p in name_parts if p)
+
                         student_name = (
                             payload.get("fullName")
-                            or payload.get("full_name")
-                            or payload.get("name")
+                            or constructed_name
                             or payload.get("studentName")
-                            or payload.get("student_name")
-                            or (payload.get("data", {}).get("fullName") if isinstance(payload.get("data"), dict) else None)
+                            or payload.get("name")
                             or "N/A"
                         )
 
-                        university = (
-                            payload.get("university")
+                        uni_obj = (
+                            payload.get("resultUniversity")
+                            or payload.get("university")
                             or payload.get("institution")
                             or payload.get("assignedUniversity")
-                            or payload.get("assigned_university")
-                            or (payload.get("data", {}).get("university") if isinstance(payload.get("data"), dict) else None)
-                            or "N/A"
                         )
+                        if isinstance(uni_obj, dict):
+                            uni_name = uni_obj.get("name") or uni_obj.get("title") or "N/A"
+                            uni_abbr = uni_obj.get("abbreviation") or uni_obj.get("code")
+                            university = f"{uni_name} ({uni_abbr})" if uni_abbr else uni_name
+                        elif isinstance(uni_obj, str) and uni_obj.strip():
+                            university = uni_obj.strip()
+                        else:
+                            university = "N/A"
 
-                        stream = (
-                            payload.get("stream")
-                            or payload.get("field")
-                            or payload.get("fieldOfStudy")
-                            or (payload.get("data", {}).get("stream") if isinstance(payload.get("data"), dict) else None)
-                            or "N/A"
+                        stream_obj = (
+                            payload.get("resultBand")
+                            or payload.get("resultField")
+                            or payload.get("streamName")
+                            or payload.get("stream")
                         )
+                        if isinstance(stream_obj, dict):
+                            stream = stream_obj.get("name") or stream_obj.get("title") or "N/A"
+                        elif isinstance(stream_obj, str) and stream_obj.strip():
+                            stream = stream_obj.strip()
+                        else:
+                            stream = "N/A"
+
+
+                        school_name = payload.get("schoolName") or "N/A"
+                        region_name = payload.get("regionName") or "N/A"
+                        total_val = payload.get("total")
+                        total_score = str(total_val) if total_val is not None else "N/A"
+
+                        # If university is missing or "N/A" and there's a not available message
+                        if university == "N/A" and not payload.get("resultUniversity"):
+                            # Check if student record not found / not placed
+                            if payload.get("message"):
+                                return PlacementResult(
+                                    status="NOT_FOUND",
+                                    admission_no=clean_reg,
+                                    error_message=payload.get("message"),
+                                )
 
                         return PlacementResult(
                             status="SUCCESS",
@@ -109,6 +150,9 @@ class PlacementClient:
                             student_name=student_name,
                             university=university,
                             stream=stream,
+                            school_name=school_name,
+                            region_name=region_name,
+                            total_score=total_score,
                             raw_data=payload,
                         )
 
@@ -116,7 +160,15 @@ class PlacementClient:
                         return PlacementResult(
                             status="NOT_FOUND",
                             admission_no=clean_reg,
-                            error_message="Invalid Registration Number or Placement not released yet.",
+                            error_message="ተማሪው አልተገኘም ወይም የምደባ ቁጥሩ/ስሙ ተሳስቷል።",
+                        )
+
+                    elif status_code == 429:
+                        logger.warning(f"Rate limit exceeded on MoE Placement endpoint for {clean_reg}")
+                        return PlacementResult(
+                            status="RATE_LIMIT",
+                            admission_no=clean_reg,
+                            error_message="የጥያቄ ብዛት በዝቷል። እባክዎ ጥቂት ሰከንድ ቆይተው እንደገና ይሞክሩ።",
                         )
 
                     elif status_code in (500, 502, 503, 504):
@@ -164,3 +216,4 @@ class PlacementClient:
 
 # Global placement client instance
 placement_client = PlacementClient()
+

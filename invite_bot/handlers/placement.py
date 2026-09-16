@@ -29,10 +29,11 @@ router = Router()
 
 class PlacementStates(StatesGroup):
     waiting_for_admission_no = State()
+    waiting_for_first_name = State()
 
 
 def get_placement_cancel_keyboard() -> InlineKeyboardMarkup:
-    """Cancel button when waiting for user admission number."""
+    """Cancel button when waiting for user placement input."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="❌ ሰርዝ (Cancel)", callback_data="cancel_placement")]
@@ -172,7 +173,7 @@ async def handle_placement_courses(callback: CallbackQuery, bot: Bot):
 
 @router.message(PlacementStates.waiting_for_admission_no)
 async def process_admission_number(message: Message, bot: Bot, state: FSMContext):
-    """Processes user entered admission number and queries MoE Placement API."""
+    """Processes user entered admission number and moves to first name prompt."""
     text = (message.text or "").strip()
 
     # Cancel command or menu button tapped
@@ -201,10 +202,62 @@ async def process_admission_number(message: Message, bot: Bot, state: FSMContext
     if len(clean_admission_no) < 4 or len(clean_admission_no) > 15:
         await message.answer(
             "⚠️ <b>ያስገቡት መለያ ቁጥር ልክ አይደለም!</b>\n"
-            "እባክዎ ትክክለኛ የፈተና መለያ ቁጥርዎን (ለምሳሌ <code>00052454</code>) ያስገቡ ወይም ለመሰረዝ <b>/cancel</b> ይበሉ:",
+            "እባክዎ ትክክለኛ የፈተና መለያ ቁጥርዎን (ለምሳሌ <code>00176600</code>) ያስገቡ ወይም ለመሰረዝ <b>/cancel</b> ይበሉ:",
             parse_mode=ParseMode.HTML,
             reply_markup=get_placement_cancel_keyboard(),
         )
+        return
+
+    # Store admission_no in state and prompt for first_name
+    await state.update_data(admission_no=clean_admission_no)
+    await state.set_state(PlacementStates.waiting_for_first_name)
+    await message.answer(
+        msg.PLACEMENT_FIRST_NAME_PROMPT_TEXT,
+        parse_mode=ParseMode.HTML,
+        reply_markup=get_placement_cancel_keyboard(),
+    )
+
+
+@router.message(PlacementStates.waiting_for_first_name)
+async def process_first_name(message: Message, bot: Bot, state: FSMContext):
+    """Processes first name input and queries MoE Placement API."""
+    text = (message.text or "").strip()
+
+    # Cancel command or menu button tapped
+    if text in ("/cancel", "cancel", "ሰርዝ"):
+        await state.clear()
+        await message.answer("❌ የምደባ ፍለጋ ተሰርዟል።", parse_mode=ParseMode.HTML)
+        return
+
+    if text in (
+        msg.BTN_PLACEMENT,
+        msg.BTN_RESOURCES,
+        msg.BTN_UNIVERSITIES,
+        msg.BTN_GPA_CALC,
+        msg.BTN_GET_LINK,
+        msg.BTN_MY_STATS,
+        msg.BTN_LEADERBOARD,
+        msg.BTN_RULES,
+        msg.BTN_CHANNEL,
+    ):
+        await state.clear()
+        return
+
+    clean_first_name = text.strip()
+    if len(clean_first_name) < 2:
+        await message.answer(
+            "⚠️ <b>እባክዎ ትክክለኛ የመጀመሪያ ስምዎን ያስገቡ!</b>\n"
+            "ለምሳሌ: <code>Ruth</code> ወይም ለመሰረዝ <b>/cancel</b> ይበሉ:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_placement_cancel_keyboard(),
+        )
+        return
+
+    user_data = await state.get_data()
+    clean_admission_no = user_data.get("admission_no", "")
+    if not clean_admission_no:
+        await state.set_state(PlacementStates.waiting_for_admission_no)
+        await message.answer(msg.PLACEMENT_PROMPT_TEXT, parse_mode=ParseMode.HTML)
         return
 
     # Send typing action
@@ -226,14 +279,17 @@ async def process_admission_number(message: Message, bot: Bot, state: FSMContext
         await status_msg.edit_text(response_text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
         return
 
-    # 2. Query live placement endpoint
-    result = await placement_client.query_placement(clean_admission_no)
+    # 2. Query live placement endpoint (student.ethernet.edu.et)
+    result = await placement_client.query_placement(clean_admission_no, clean_first_name)
 
     if result.status == "SUCCESS":
         await state.clear()
         student_name = result.student_name or "N/A"
         university = result.university or "N/A"
         stream = result.stream or "N/A"
+        school_name = result.school_name or "N/A"
+        region_name = result.region_name or "N/A"
+        total_score = result.total_score or "N/A"
 
         # Save to local cache
         raw_json_str = str(result.raw_data) if result.raw_data else ""
@@ -251,14 +307,23 @@ async def process_admission_number(message: Message, bot: Bot, state: FSMContext
             reg_number=clean_admission_no,
             university=university,
             stream=stream,
+            school_name=school_name,
+            region_name=region_name,
+            total_score=total_score,
             cached=False,
         )
         await status_msg.edit_text(response_text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
 
     elif result.status == "NOT_FOUND":
-        # Keep state active so user can retype or cancel
         await status_msg.edit_text(
             msg.PLACEMENT_NOT_RELEASED_TEXT.format(reg_no=clean_admission_no),
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_placement_cancel_keyboard(),
+        )
+
+    elif result.status == "RATE_LIMIT":
+        await status_msg.edit_text(
+            msg.PLACEMENT_RATE_LIMIT_TEXT,
             parse_mode=ParseMode.HTML,
             reply_markup=get_placement_cancel_keyboard(),
         )
@@ -277,3 +342,4 @@ async def process_admission_number(message: Message, bot: Bot, state: FSMContext
             parse_mode=ParseMode.HTML,
             reply_markup=get_placement_cancel_keyboard(),
         )
+

@@ -187,11 +187,11 @@ class Database:
                 );
             """)
 
-            # Ensure default setting for placement_enabled exists (default 0 = disabled/hidden)
+            # Ensure default setting for placement_enabled exists (default 1 = enabled)
             cursor = await db.execute("SELECT value FROM app_settings WHERE key = 'placement_enabled'")
             if not await cursor.fetchone():
                 await db.execute(
-                    "INSERT INTO app_settings (key, value) VALUES ('placement_enabled', '0')"
+                    "INSERT INTO app_settings (key, value) VALUES ('placement_enabled', '1')"
                 )
 
             # Indexes for fast lookup queries
