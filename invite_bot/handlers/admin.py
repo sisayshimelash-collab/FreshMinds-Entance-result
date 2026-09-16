@@ -63,10 +63,18 @@ def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
 
-def get_admin_menu_markup() -> InlineKeyboardMarkup:
-    """Interactive Admin Panel Keyboard."""
+def get_admin_menu_markup(placement_enabled: bool = False) -> InlineKeyboardMarkup:
+    """Interactive Admin Panel Keyboard with Placement Feature Toggle."""
+    status_icon = "🟢 ON (Visible)" if placement_enabled else "🔴 OFF (Hidden)"
+    toggle_text = f"🎓 Placement: {status_icon} (Toggle)"
+
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=toggle_text, callback_data="admin_toggle_placement"
+                )
+            ],
             [
                 InlineKeyboardButton(
                     text="🏛️ Manage Universities", callback_data="admin_unis_menu"
@@ -146,10 +154,12 @@ async def cmd_admin(message: Message):
         "• <code>/add_points &lt;user_id&gt; &lt;points&gt;</code> ➜ Add manual bonus\n"
         "• <code>/remove_points &lt;user_id&gt; &lt;points&gt;</code> ➜ Deduct points\n"
         "• <code>/broadcast &lt;text&gt;</code> ➜ Send announcement to all\n"
-        "• <code>/reset_week &lt;name&gt;</code> ➜ Archive Top 4 and reset"
+        "• <code>/reset_week &lt;name&gt;</code> ➜ Archive Top 4 and reset\n"
+        "• <code>/toggle_placement</code> ➜ Enable/Disable Placement button"
     )
+    placement_enabled = await db.is_placement_enabled()
     await message.answer(
-        text, parse_mode=ParseMode.HTML, reply_markup=get_admin_menu_markup()
+        text, parse_mode=ParseMode.HTML, reply_markup=get_admin_menu_markup(placement_enabled)
     )
 
 
@@ -173,8 +183,9 @@ async def cb_admin_stats(callback: CallbackQuery):
         f"📉 የለቀቁ (Left/Churned): <b>{total_joins - active_joins:,} ({churn_rate:.1f}%)</b>\n"
         "━━━━━━━━━━━━━━━━━━━━"
     )
+    placement_enabled = await db.is_placement_enabled()
     await callback.message.answer(
-        text, parse_mode=ParseMode.HTML, reply_markup=get_admin_menu_markup()
+        text, parse_mode=ParseMode.HTML, reply_markup=get_admin_menu_markup(placement_enabled)
     )
 
 
@@ -202,10 +213,11 @@ async def cb_admin_top(callback: CallbackQuery):
     if not top_users:
         lines.append("<i>No referrals yet.</i>")
     lines.append("━━━━━━━━━━━━━━━━━━━━")
+    placement_enabled = await db.is_placement_enabled()
     await callback.message.answer(
         "\n".join(lines),
         parse_mode=ParseMode.HTML,
-        reply_markup=get_admin_menu_markup(),
+        reply_markup=get_admin_menu_markup(placement_enabled),
     )
 
 
@@ -230,10 +242,11 @@ async def cb_admin_users(callback: CallbackQuery):
             f"{idx}. <b>{display_name}</b> ({uname}) | ID: <code>{u['user_id']}</code> | <b>{u['active_points']}</b> pts"
         )
     lines.append("━━━━━━━━━━━━━━━━━━━━")
+    placement_enabled = await db.is_placement_enabled()
     await callback.message.answer(
         "\n".join(lines),
         parse_mode=ParseMode.HTML,
-        reply_markup=get_admin_menu_markup(),
+        reply_markup=get_admin_menu_markup(placement_enabled),
     )
 
 
@@ -249,6 +262,57 @@ async def cb_admin_hints(callback: CallbackQuery):
     }
     hint_text = hints.get(callback.data, "Use the command directly in chat.")
     await callback.answer(hint_text, show_alert=True)
+
+
+@router.callback_query(F.data == "admin_toggle_placement")
+async def cb_admin_toggle_placement(callback: CallbackQuery):
+    """Toggles placement feature visibility on and off."""
+    if not is_admin(callback.from_user.id):
+        return
+    current_status = await db.is_placement_enabled()
+    new_status = not current_status
+    await db.set_placement_enabled(new_status)
+
+    status_alert = (
+        "🟢 የምደባ ማወቂያ በርቷል (ENABLED)!\nአሁን ለተማሪዎች በዋናው ሜኑ ይታያል።"
+        if new_status
+        else "🔴 የምደባ ማወቂያ ጠፍቷል (DISABLED)!\nአሁን ከዋናው ሜኑ ለተማሪዎች ተደብቋል።"
+    )
+    await callback.answer(status_alert, show_alert=True)
+
+    if isinstance(callback.message, Message):
+        try:
+            await callback.message.edit_reply_markup(
+                reply_markup=get_admin_menu_markup(new_status)
+            )
+        except Exception:
+            pass
+
+
+@router.message(Command("toggle_placement"))
+async def cmd_toggle_placement(message: Message):
+    """Direct command to toggle placement feature: /toggle_placement"""
+    user = message.from_user
+    if not user or not is_admin(user.id):
+        return
+
+    current_status = await db.is_placement_enabled()
+    new_status = not current_status
+    await db.set_placement_enabled(new_status)
+
+    status_text = (
+        "🟢 <b>በርቷል (ENABLED)</b>\n"
+        "• ለሁሉም ተማሪዎች በዋናው ሜኑ <b>'🎓 የዩኒቨርሲቲ ምደባ (Placement)'</b> ቁልፍ ይታያል።"
+        if new_status
+        else "🔴 <b>ጠፍቷል (DISABLED)</b>\n"
+        "• ለተማሪዎች ከዋናው ሜኑ ተደብቋል። ተማሪዎች ቢሞክሩም ዝግ መሆኑ ይገለጽላቸዋል።"
+    )
+
+    await message.answer(
+        f"⚙️ <b>የዩኒቨርሲቲ ምደባ አገልግሎት ሁኔታ ተቀይሯል:</b>\n\n{status_text}",
+        parse_mode=ParseMode.HTML,
+    )
+
 
 
 # ── Direct Admin Commands ────────────────────────────────────────────────────

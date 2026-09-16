@@ -13,12 +13,14 @@ from .admin import router as admin_router
 from .resources import router as resources_router
 from .universities import router as universities_router
 from .gpa_calculator import router as gpa_calculator_router
+from .placement import router as placement_router
 
 
 def setup_routers() -> Router:
     main_router = Router()
     main_router.include_router(tracker_router)  # ChatMemberUpdated priority
     main_router.include_router(admin_router)
+    main_router.include_router(placement_router)
     main_router.include_router(resources_router)
     main_router.include_router(universities_router)
     main_router.include_router(gpa_calculator_router)

@@ -67,6 +67,16 @@ class CompetitionRecord(NamedTuple):
     created_at: str
 
 
+class PlacementCacheRecord(NamedTuple):
+    admission_no: str
+    student_name: str
+    university: str
+    stream: Optional[str]
+    raw_json: Optional[str]
+    fetched_at: str
+
+
+
 class Database:
     """Async SQLite database manager for user links, referrals, and leaderboards."""
 
@@ -156,6 +166,33 @@ class Database:
                     FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
                 );
             """)
+
+            # 7. Placement Cache Table (Fast response and fallback if MoE server is down)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS placement_cache (
+                    admission_no TEXT PRIMARY KEY,
+                    student_name TEXT,
+                    university TEXT,
+                    stream TEXT,
+                    raw_json TEXT,
+                    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # 8. App Settings Table (Dynamic Admin Feature Toggles)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+            """)
+
+            # Ensure default setting for placement_enabled exists (default 0 = disabled/hidden)
+            cursor = await db.execute("SELECT value FROM app_settings WHERE key = 'placement_enabled'")
+            if not await cursor.fetchone():
+                await db.execute(
+                    "INSERT INTO app_settings (key, value) VALUES ('placement_enabled', '0')"
+                )
 
             # Indexes for fast lookup queries
             await db.execute(
@@ -912,7 +949,128 @@ class Database:
                 for r in rows
             ]
 
+    # ── Placement Cache Methods ───────────────────────────────────────────────
+
+    async def get_cached_placement(self, admission_no: str) -> Optional[PlacementCacheRecord]:
+        """Fetch cached placement result by admission number."""
+        clean_no = admission_no.strip()
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT admission_no, student_name, university, stream, raw_json, fetched_at
+                FROM placement_cache
+                WHERE admission_no = ?
+                """,
+                (clean_no,),
+            )
+            row = await cursor.fetchone()
+            if row:
+                return PlacementCacheRecord(
+                    admission_no=row["admission_no"],
+                    student_name=row["student_name"],
+                    university=row["university"],
+                    stream=row["stream"],
+                    raw_json=row["raw_json"],
+                    fetched_at=row["fetched_at"],
+                )
+            return None
+
+    async def save_placement_cache(
+        self,
+        admission_no: str,
+        student_name: str,
+        university: str,
+        stream: Optional[str] = None,
+        raw_json: Optional[str] = None,
+    ):
+        """Save or update placement in local cache."""
+        clean_no = admission_no.strip()
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO placement_cache (admission_no, student_name, university, stream, raw_json, fetched_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(admission_no) DO UPDATE SET
+                    student_name = excluded.student_name,
+                    university = excluded.university,
+                    stream = excluded.stream,
+                    raw_json = excluded.raw_json,
+                    fetched_at = CURRENT_TIMESTAMP
+                """,
+                (clean_no, student_name, university, stream, raw_json),
+            )
+            await db.commit()
+
+    async def find_university_by_name(self, name_query: str) -> Optional[UniversityRecord]:
+        """Fuzzy/substring search university by name to link to university profile."""
+        clean_query = name_query.strip()
+        if not clean_query:
+            return None
+
+        # Clean common words like 'University', 'ዩኒቨርሲቲ'
+        keyword = clean_query.replace("University", "").replace("ዩኒቨርሲቲ", "").strip()
+        if not keyword:
+            keyword = clean_query
+
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT id, name, about_text, sort_order
+                FROM universities
+                WHERE name LIKE ? OR name LIKE ?
+                ORDER BY length(name) ASC
+                LIMIT 1
+                """,
+                (f"%{keyword}%", f"%{clean_query}%"),
+            )
+            row = await cursor.fetchone()
+            if row:
+                return UniversityRecord(
+                    id=row["id"],
+                    name=row["name"],
+                    about_text=row["about_text"],
+                    sort_order=row["sort_order"],
+                )
+            return None
+
+    # ── App Settings & Admin Toggles ───────────────────────────────────────────
+
+    async def get_setting(self, key: str, default: str = "") -> str:
+        """Fetch setting value by key."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                "SELECT value FROM app_settings WHERE key = ?", (key,)
+            )
+            row = await cursor.fetchone()
+            return row["value"] if row else default
+
+    async def set_setting(self, key: str, value: str):
+        """Save or update setting value."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO app_settings (key, value) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (key, str(value)),
+            )
+            await db.commit()
+
+    async def is_placement_enabled(self) -> bool:
+        """Check if placement feature is enabled (1 = enabled, 0 = disabled)."""
+        val = await self.get_setting("placement_enabled", default="0")
+        return str(val).strip() == "1"
+
+    async def set_placement_enabled(self, enabled: bool):
+        """Enable (1) or disable (0) placement feature."""
+        await self.set_setting("placement_enabled", "1" if enabled else "0")
+
+
 
 # Global database instance
 db = Database()
+
 

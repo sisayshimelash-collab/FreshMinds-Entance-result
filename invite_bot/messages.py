@@ -13,6 +13,7 @@ from config import (
 )
 
 # ── Main Menu Keyboard Labels ────────────────────────────────────────────────
+BTN_PLACEMENT = "🎓 የዩኒቨርሲቲ ምደባ (Placement)"
 BTN_RESOURCES = "📚 ኮርሶችና ማቴሪያሎች (Resources)"
 BTN_UNIVERSITIES = "🏛️ የዩኒቨርሲቲዎች መረጃ (Universities)"
 BTN_GPA_CALC = "🧮 GPA ማስያ (Calculator)"
@@ -48,6 +49,7 @@ def format_welcome_text(competition=None) -> str:
         f"🔗 <a href=\"https://t.me/{TARGET_CHANNEL}\">https://t.me/{TARGET_CHANNEL}</a>\n"
         "<i>(ሁሉንም ትኩስ መረጃዎች፣ የቪዲዮ ትምህርቶችና የዩኒቨርሲቲ ዜናዎች በቻናላችን ይከታተሉ — አሁኑኑ ይቀላቀሉ!)</i>\n"
         "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "🎓 <b>የዩኒቨርሲቲ ምደባ:</b> የተመደቡበትን ዩኒቨርሲቲ በቀላሉ በአድሚሽን ቁጥርዎ ይመልከቱ\n"
         "📚 <b>የኮርስ ማቴሪያሎች:</b> የ 1ኛ አመት ሞጁሎች፣ የማጠቃለያ ኖቶችና ያለፉ ፈተናዎች\n"
         "🏛️ <b>የዩኒቨርሲቲዎች መረጃ:</b> የኢትዮጵያ ዩኒቨርሲቲዎች አጠቃላይ መረጃና የካምፓስ ህይወት\n"
         "🧮 <b>GPA ማስያ:</b> የ 1st Semester ውጤት በቀላሉ የሚያሰሉበት ልዩ ካልኩሌተር\n"
@@ -297,4 +299,52 @@ def format_rules_text(competition=None) -> str:
     )
 
 RULES_TEXT = format_rules_text()
+
+
+# ── University Placement Message Templates ─────────────────────────────────────
+PLACEMENT_PROMPT_TEXT = (
+    "🎓 <b>የትምህርት ሚኒስቴር የዩኒቨርሲቲ ምደባ ማወቂያ</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "የተመደቡበትን ዩኒቨርሲቲ ለማወቅ እባክዎ የፈተና መለያ ቁጥርዎን (Admission / Registration Number) ያስገቡ:\n\n"
+    "<i>ለምሳሌ: <code>00052454</code> ወይም <code>1234567</code></i>\n\n"
+    "❌ ለመሰረዝ <b>/cancel</b> ብለው ይጻፉ።"
+)
+
+PLACEMENT_NOT_RELEASED_TEXT = (
+    "❌ <b>ለመለያ ቁጥር <code>{reg_no}</code> የተገኘ ምደባ የለም!</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "💡 <b>ሊሆኑ የሚችሉ ምክንያቶች:</b>\n"
+    "1. ተማሪዎች አሁንም የዩኒቨርሲቲ ምርጫ (Choosing Stage) ላይ ስለሆኑ የ 2019 ዓ.ም ምደባ በትምህርት ሚኒስቴር እስካሁን ይፋ አልተደረገም።\n"
+    "2. ያስገቡት መለያ ቁጥር የተሳሳተ ሊሆን ይችላል (እባክዎ ቁጥሩን ያረጋግጡ)።\n\n"
+    "📢 <i>የትምህርት ሚኒስቴር ምደባውን ይፋ እንዳደረገ ወዲያውኑ በቦታችን ማየት ይችላሉ!</i>"
+)
+
+PLACEMENT_SERVER_BUSY_TEXT = (
+    "⚠️ <b>የትምህርት ሚኒስቴር ሰርቨር ስራ በዝቶበታል!</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "በአሁኑ ሰዓት በርካታ ተማሪዎች እየሞከሩ ስለሆነ ወይም የኢተርኔት (EtherNet) ሰርቨር በመጨናነቁ ምክንያት ምላሽ አልሰጠም።\n\n"
+    "🔄 እባክዎ ከጥቂት ደቂቃዎች በኋላ እንደገና ይሞክሩ።"
+)
+
+
+def format_placement_card(
+    student_name: str,
+    reg_number: str,
+    university: str,
+    stream: str,
+    cached: bool = False,
+) -> str:
+    """Formats student placement result card in clean HTML."""
+    badge = " <i>(የተቀመጠ መረጃ)</i>" if cached else ""
+    return (
+        f"🎓 <b>የትምህርት ሚኒስቴር የዩኒቨርሲቲ ምደባ ውጤት</b>{badge}\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>የተማሪው ስም:</b> {html.escape(student_name)}\n"
+        f"🔢 <b>መለያ ቁጥር:</b> <code>{html.escape(reg_number)}</code>\n"
+        f"🏛️ <b>የተመደቡበት ዩኒቨርሲቲ:</b> <b>{html.escape(university)}</b>\n"
+        f"📚 <b>የትምህርት መስክ:</b> {html.escape(stream)}\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "✨ <i>እንኳን ደስ አላችሁ! ለካምፓስ ህይወትዎ እና ለ 1st Year ውጤታማነትዎ ከጎንዎ ነን!</i>"
+    )
+
 

@@ -24,15 +24,19 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-def get_main_menu_keyboard(has_active_comp: bool = False) -> ReplyKeyboardMarkup:
-    """Persistent bottom reply keyboard. Hides competition buttons when no active competition."""
-    rows = [
-        [KeyboardButton(text=msg.BTN_RESOURCES)],
-        [
-            KeyboardButton(text=msg.BTN_UNIVERSITIES),
-            KeyboardButton(text=msg.BTN_GPA_CALC),
-        ],
-    ]
+def get_main_menu_keyboard(
+    has_active_comp: bool = False, show_placement: bool = False
+) -> ReplyKeyboardMarkup:
+    """Persistent bottom reply keyboard. Conditionally shows placement and competition buttons."""
+    rows = []
+    if show_placement:
+        rows.append([KeyboardButton(text=msg.BTN_PLACEMENT)])
+
+    rows.append([KeyboardButton(text=msg.BTN_RESOURCES)])
+    rows.append([
+        KeyboardButton(text=msg.BTN_UNIVERSITIES),
+        KeyboardButton(text=msg.BTN_GPA_CALC),
+    ])
     if has_active_comp:
         rows.append([
             KeyboardButton(text=msg.BTN_GET_LINK),
@@ -168,10 +172,11 @@ async def handle_start(message: Message, bot: Bot):
         reply_markup=inline_markup,
         disable_web_page_preview=True,
     )
+    show_placement = await db.is_placement_enabled()
     await message.answer(
         "👇 <b>ከታች ያሉትን የቦቱን አገልግሎቶች ይጠቀሙ:</b>",
         parse_mode=ParseMode.HTML,
-        reply_markup=get_main_menu_keyboard(has_active_comp=has_comp),
+        reply_markup=get_main_menu_keyboard(has_active_comp=has_comp, show_placement=show_placement),
     )
 
 
@@ -259,17 +264,18 @@ async def handle_help(message: Message):
         reply_markup=get_welcome_join_inline_markup(),
         disable_web_page_preview=True,
     )
+    show_placement = await db.is_placement_enabled()
     await message.answer(
         "👇 <b>ከታች ያሉትን የቦቱን አገልግሎቶች ይጠቀሙ:</b>",
         parse_mode=ParseMode.HTML,
-        reply_markup=get_main_menu_keyboard(has_active_comp=has_comp),
+        reply_markup=get_main_menu_keyboard(has_active_comp=has_comp, show_placement=show_placement),
     )
 
 
 
 @router.message(F.text == msg.BTN_CHANNEL)
 async def handle_channel_button(message: Message):
-    """Provides direct channel link and join button from the main menu."""
+    """Provides direct 1-tap native channel link and join button."""
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -281,13 +287,7 @@ async def handle_channel_button(message: Message):
         ]
     )
     await message.answer(
-        f"📢 <b>FreshMinds Academy Official የቴሌግራም ቻናል:</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"👉 <b>@{TARGET_CHANNEL}</b>\n\n"
-        "ሁሉንም አዳዲስ የ 2019 ዓ.ም የ Freshman ትምህርቶች፣ የቪዲዮ ኮርሶች፣ "
-        "የዩኒቨርሲቲ መረጃዎችና ማስታወቂያዎች በቻናላችን ያገኛሉ!\n\n"
-        "👇 ከታች ያለውን ሊንክ ተጭነው ቻናሉን ይቀላቀሉ:",
-        parse_mode=ParseMode.HTML,
+        f"👉 https://t.me/{TARGET_CHANNEL}",
         reply_markup=keyboard,
-        disable_web_page_preview=True,
+        disable_web_page_preview=False,
     )
