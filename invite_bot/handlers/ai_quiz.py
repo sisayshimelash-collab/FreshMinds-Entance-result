@@ -64,18 +64,33 @@ def build_quiz_courses_keyboard(courses: list) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-def build_topics_keyboard(course_id: int) -> InlineKeyboardMarkup:
-    """Builds chapter & exam topic selection keyboard for a course."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="📌 Chapter 1: Key Concepts & Foundations", callback_data=f"aiq_topic_{course_id}_ch1")],
-            [InlineKeyboardButton(text="📌 Chapter 2: Core Laws, Theorems & Formulas", callback_data=f"aiq_topic_{course_id}_ch2")],
-            [InlineKeyboardButton(text="📌 Chapter 3: Applied Problems & Analysis", callback_data=f"aiq_topic_{course_id}_ch3")],
-            [InlineKeyboardButton(text="🎯 Midterm Exam Simulation (5 Questions)", callback_data=f"aiq_topic_{course_id}_midterm")],
-            [InlineKeyboardButton(text="🏆 Final Exam Challenge (5 Questions)", callback_data=f"aiq_topic_{course_id}_final")],
-            [InlineKeyboardButton(text="🔙 ወደ ኮርሶች ዝርዝር (Back)", callback_data="aiq_menu")],
-        ]
-    )
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
+
+class AIQuizStates(StatesGroup):
+    waiting_for_custom_topic = State()
+
+
+def build_topics_keyboard(course_id: int, materials: list = None) -> InlineKeyboardMarkup:
+    """Builds chapter & exam topic selection keyboard for a course, dynamically populated with material titles."""
+    buttons = []
+    
+    # Render up to 4 material titles as custom chapter buttons if available
+    if materials:
+        for idx, m in enumerate(materials[:4]):
+            title_clean = m.title[:30]
+            buttons.append([InlineKeyboardButton(text=f"📖 {title_clean}", callback_data=f"aiq_topic_{course_id}_mat{m.id}")])
+
+    buttons.extend([
+        [InlineKeyboardButton(text="📌 Chapter 1: Key Concepts & Foundations", callback_data=f"aiq_topic_{course_id}_ch1")],
+        [InlineKeyboardButton(text="📌 Chapter 2: Core Laws, Theorems & Formulas", callback_data=f"aiq_topic_{course_id}_ch2")],
+        [InlineKeyboardButton(text="📌 Chapter 3: Applied Problems & Analysis", callback_data=f"aiq_topic_{course_id}_ch3")],
+        [InlineKeyboardButton(text="✍️ በምርጫዎ ርዕስ/ምዕራፍ ይጻፉ (Type Custom Topic)", callback_data=f"aiq_custom_{course_id}")],
+        [InlineKeyboardButton(text="🎯 Midterm Exam Simulation (5 Questions)", callback_data=f"aiq_topic_{course_id}_midterm")],
+        [InlineKeyboardButton(text="🏆 Final Exam Challenge (5 Questions)", callback_data=f"aiq_topic_{course_id}_final")],
+        [InlineKeyboardButton(text="🔙 ወደ ኮርሶች ዝርዝር (Back)", callback_data="aiq_menu")],
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def build_question_options_keyboard(user_id: int, q_idx: int, options: list) -> InlineKeyboardMarkup:
@@ -174,21 +189,133 @@ async def handle_quiz_course_select(callback: CallbackQuery):
         await callback.answer("⚠️ ኮርሱ አልተገኘም!", show_alert=True)
         return
 
+    materials = await db.get_materials_by_course(course_id)
+
     await callback.answer()
     text = (
         f"{course.icon} <b>{course.name} — Interactive AI Quiz</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "የሚፈልጉትን ምዕራፍ ወይም የፈተና አይነት ይምረጡ:\n\n"
-        "• 📌 <b>Chapter 1 to 3:</b> በምዕራፍ የተከፋፈሉ አጫጭር ጥያቄዎች\n"
-        "• 🎯 <b>Midterm Model:</b> የ 5 ጥያቄዎች የmidterm ሞዴል ፈተና\n"
-        "• 🏆 <b>Final Exam Challenge:</b> አጠቃላይ የfinal ፈተና ጥያቄዎች"
+        "• 📖 <b>የተጫኑ የትምህርት ይዘቶች:</b> በመምህራን በተጫኑ ይዘቶች መፈተን\n"
+        "• ✍️ <b>Custom Topic:</b> የሚፈልጉትን ማንኛውንም ርዕስ ጽፈው መፈተን\n"
+        "• 🎯 <b>Exam Simulation:</b> የ 5 ጥያቄዎች የ Midterm / Final ሞዴል ፈተና"
     )
 
     await callback.message.edit_text(
         text,
         parse_mode=ParseMode.HTML,
-        reply_markup=build_topics_keyboard(course_id),
+        reply_markup=build_topics_keyboard(course_id, materials),
     )
+
+
+@router.callback_query(F.data.startswith("aiq_custom_"))
+async def handle_quiz_custom_prompt(callback: CallbackQuery, state: FSMContext):
+    """Prompts student to type custom chapter / topic name."""
+    course_id = int(callback.data.partition("aiq_custom_")[2])
+    course = await db.get_course_by_id(course_id)
+    if not course:
+        await callback.answer("⚠️ ኮርሱ አልተገኘም!", show_alert=True)
+        return
+
+    await state.update_data(ai_course_id=course_id)
+    await state.set_state(AIQuizStates.waiting_for_custom_topic)
+    await callback.answer()
+
+    text = (
+        f"✍️ <b>{course.name} — የፈለጉትን ርዕስ/ምዕራፍ ይጻፉ:</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "ፈተና እንዲዘጋጅበት የሚፈልጉትን ርዕስ ከታች በጽሁፍ ይላኩ:\n"
+        "<i>(ምሳሌ፡ Chapter 1 Kinematics, or Newton's Laws, or Limits and Continuity)</i>"
+    )
+    await callback.message.edit_text(text, parse_mode=ParseMode.HTML)
+
+
+@router.message(AIQuizStates.waiting_for_custom_topic)
+async def process_custom_topic_text(message: Message, state: FSMContext, bot: Bot):
+    """Receives student's custom topic text input and generates quiz."""
+    data = await state.get_data()
+    course_id = data.get("ai_course_id")
+    custom_topic = message.text.strip() if message.text else "General Concepts"
+    await state.clear()
+
+    course = await db.get_course_by_id(course_id)
+    if not course:
+        await message.answer("⚠️ ኮርሱ አልተገኘም። እባክዎ እንደገና ይጀምሩ።")
+        return
+
+async def generate_and_start_quiz(
+    target_msg: Message | CallbackQuery,
+    user_id: int,
+    course,
+    topic_title: str,
+    bot: Bot,
+    edit_existing: bool = True
+):
+    """Core function to query Gemini AI and initialize user quiz session."""
+    chat_id = target_msg.message.chat.id if isinstance(target_msg, CallbackQuery) else target_msg.chat.id
+
+    if isinstance(target_msg, CallbackQuery):
+        await target_msg.answer("🧠 FreshMinds AI ጥያቄዎችን እያዘጋጀ ነው...")
+    await bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+
+    # Fetch material titles uploaded for this course to ground AI prompt
+    materials = await db.get_materials_by_course(course.id)
+    mat_titles = [m.title for m in materials] if materials else ["MoE Freshman Standard Syllabus"]
+
+    prompt = (
+        f"Generate 5 multiple-choice questions for the Ethiopian university freshman course '{course.name}' "
+        f"specifically on the topic '{topic_title}'. "
+        f"Base the questions strictly on the official MoE freshman curriculum and course materials: {', '.join(mat_titles[:5])}.\n\n"
+        "Return ONLY a valid JSON array of 5 objects without markdown formatting. Each object must have:\n"
+        "- 'num': integer (1 to 5)\n"
+        "- 'question': string (clear exam question in English)\n"
+        "- 'options': list of 4 strings (e.g. ['A. ...', 'B. ...', 'C. ...', 'D. ...'])\n"
+        "- 'correct_index': integer (0 for A, 1 for B, 2 for C, 3 for D)\n"
+        "- 'explanation': string (detailed step-by-step solution and reasoning in a mix of Amharic and English)\n"
+    )
+
+    questions = []
+    if HAS_GENAI and GEMINI_API_KEY:
+        try:
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            response = model.generate_content(prompt)
+            json_str = clean_json_response(response.text)
+            parsed = json.loads(json_str)
+            if isinstance(parsed, list) and len(parsed) > 0:
+                questions = parsed
+        except Exception as e:
+            logger.error(f"Failed to generate AI quiz questions via Gemini API: {e}")
+
+    # Fallback demo questions if Gemini API key is missing or call failed
+    if not questions:
+        questions = [
+            {
+                "num": 1,
+                "question": f"In {course.name} ({topic_title}), which of the following principles is fundamental?",
+                "options": ["A. Fundamental Principle", "B. Secondary Corollary", "C. Arbitrary Assumption", "D. None of the above"],
+                "correct_index": 0,
+                "explanation": f"በ {course.name} መሰረታዊው መبدአ Fundamental Principle ነው (A)።"
+            },
+            {
+                "num": 2,
+                "question": f"Which approach is standard when analyzing core problems in {course.name}?",
+                "options": ["A. Unstructured Estimation", "B. SI Unit & Dimensional Analysis", "C. Trial and Error", "D. Disregarding units"],
+                "correct_index": 1,
+                "explanation": "በሳይንሳዊ ትንተና መሰረታዊ መለኪያዎችን በመጠቀም SI Unit Analysis መተግበር ያስፈልጋል (B)።"
+            }
+        ]
+
+    user_quiz_sessions[user_id] = {
+        "course_id": course.id,
+        "course_name": course.name,
+        "topic_title": topic_title,
+        "questions": questions,
+        "current_idx": 0,
+        "score": 0,
+    }
+
+    msg_to_render = target_msg.message if isinstance(target_msg, CallbackQuery) else target_msg
+    await render_quiz_question(msg_to_render, user_id, edit=edit_existing)
 
 
 @router.callback_query(F.data.startswith("aiq_topic_"))
@@ -204,6 +331,9 @@ async def handle_quiz_generate(callback: CallbackQuery, bot: Bot):
         await callback.answer("⚠️ ኮርሱ አልተገኘም!", show_alert=True)
         return
 
+    materials = await db.get_materials_by_course(course_id)
+    mat_dict = {f"mat{m.id}": m.title for m in materials} if materials else {}
+
     topic_names = {
         "ch1": "Chapter 1: Key Concepts & Foundations",
         "ch2": "Chapter 2: Core Laws & Formulas",
@@ -211,69 +341,17 @@ async def handle_quiz_generate(callback: CallbackQuery, bot: Bot):
         "midterm": "Midterm Exam Simulation",
         "final": "Final Exam Challenge",
     }
+    topic_names.update(mat_dict)
     topic_title = topic_names.get(topic_slug, "General Assessment")
 
-    # Fetch materials titles uploaded for this course to ground AI prompt
-    materials = await db.get_materials_by_course(course_id)
-    mat_titles = [m.title for m in materials] if materials else ["MoE Freshman Standard Syllabus"]
-
-    await callback.answer("🧠 FreshMinds AI ጥያቄዎችን እያዘጋጀ ነው...")
-    await bot.send_chat_action(chat_id=callback.message.chat.id, action=ChatAction.TYPING)
-
-    # Gemini JSON Prompting
-    prompt = (
-        f"Generate 5 multiple-choice questions for the Ethiopian university freshman course '{course.name}' "
-        f"specifically on the topic '{topic_title}'. "
-        f"Base the questions on the official MoE freshman curriculum and course materials: {', '.join(mat_titles[:5])}.\n\n"
-        "Return ONLY a valid JSON array of 5 objects without markdown formatting. Each object must have:\n"
-        "- 'num': integer (1 to 5)\n"
-        "- 'question': string (clear exam question in English)\n"
-        "- 'options': list of 4 strings (e.g. ['A. ...', 'B. ...', 'C. ...', 'D. ...'])\n"
-        "- 'correct_index': integer (0 for A, 1 for B, 2 for C, 3 for D)\n"
-        "- 'explanation': string (detailed step-by-step solution and reasoning in a mix of Amharic and English)\n"
+    await generate_and_start_quiz(
+        target_msg=callback,
+        user_id=user_id,
+        course=course,
+        topic_title=topic_title,
+        bot=bot,
+        edit_existing=True
     )
-
-    try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(prompt)
-        json_str = clean_json_response(response.text)
-        questions = json.loads(json_str)
-
-        if not isinstance(questions, list) or len(questions) == 0:
-            raise ValueError("Invalid JSON format returned")
-
-    except Exception as e:
-        logger.error(f"Failed to generate AI quiz questions: {e}")
-        # Fallback preset questions if Gemini API fails or rate limits
-        questions = [
-            {
-                "num": 1,
-                "question": f"In {course.name} ({topic_title}), which of the following is fundamental?",
-                "options": ["A. Option Alpha", "B. Fundamental Principle", "C. Secondary Theorem", "D. None"],
-                "correct_index": 1,
-                "explanation": "መሰረታዊው መبدአ Fundamental Principle ነው (B)።"
-            },
-            {
-                "num": 2,
-                "question": "What is the primary unit or dimension used in standard SI analysis?",
-                "options": ["A. Dimensionless", "B. SI Base Unit", "C. Arbitrary Scale", "D. Exponential"],
-                "correct_index": 1,
-                "explanation": "በ SI ሲስተም መሰረታዊ መለኪያ SI Base Unit ይባላል (B)።"
-            }
-        ]
-
-    # Initialize User Quiz Session
-    user_quiz_sessions[user_id] = {
-        "course_id": course_id,
-        "course_name": course.name,
-        "topic_title": topic_title,
-        "questions": questions,
-        "current_idx": 0,
-        "score": 0,
-    }
-
-    # Display Question 1
-    await render_quiz_question(callback.message, user_id, edit=True)
 
 
 async def render_quiz_question(message: Message, user_id: int, edit: bool = True):
