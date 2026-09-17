@@ -324,8 +324,8 @@ async def handle_gpa_reset_all(callback: CallbackQuery):
 
 
 @router.callback_query(F.data == "gpa_do_calc")
-async def handle_gpa_do_calc(callback: CallbackQuery):
-    """Calculates semester GPA ignoring unfilled slots and presents results."""
+async def handle_gpa_do_calc(callback: CallbackQuery, bot: Bot):
+    """Calculates semester GPA ignoring unfilled slots and presents watermarked result card."""
     user_id = callback.from_user.id
     courses = get_user_courses(user_id)
 
@@ -344,9 +344,32 @@ async def handle_gpa_do_calc(callback: CallbackQuery):
         ]
     )
 
-    await callback.message.answer(
-        result_text,
-        parse_mode=ParseMode.HTML,
-        reply_markup=keyboard,
-        disable_web_page_preview=True,
-    )
+    try:
+        from aiogram.types import FSInputFile
+        from freshminds_card_generator import generate_gpa_report_card_image
+
+        card_path = generate_gpa_report_card_image(
+            gpa=gpa,
+            total_ch=total_ch,
+            total_pts=total_pts,
+            breakdown=breakdown,
+            output_filename=f"gpa_report_{user_id}.png",
+        )
+        photo_file = FSInputFile(card_path)
+
+        await bot.send_photo(
+            chat_id=callback.message.chat.id,
+            photo=photo_file,
+            caption=result_text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+        )
+    except Exception as e:
+        logger.error(f"Error sending GPA watermarked photo card: {e}")
+        await callback.message.answer(
+            result_text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+            disable_web_page_preview=True,
+        )
+

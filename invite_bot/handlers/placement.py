@@ -4,8 +4,10 @@ Queries the Ethiopian Ministry of Education placement endpoint with channel memb
 local caching, and direct links into campus guides & freshman resources.
 """
 
+import os
 import logging
 from aiogram import Router, F, Bot
+
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -318,7 +320,36 @@ async def process_first_name(message: Message, bot: Bot, state: FSMContext):
             total_score=total_score,
             cached=False,
         )
-        await status_msg.edit_text(response_text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
+
+        # Generate custom watermarked image card
+        try:
+            from placement_card_generator import generate_placement_card_image
+            from aiogram.types import FSInputFile
+            import tempfile
+
+            temp_img_path = os.path.join(tempfile.gettempdir(), f"placement_{clean_admission_no}.png")
+            generate_placement_card_image(
+                student_name=student_name,
+                reg_number=clean_admission_no,
+                university=university,
+                stream=stream,
+                score=total_score,
+                school=school_name,
+                region=region_name,
+                output_filename=temp_img_path,
+            )
+            photo_file = FSInputFile(temp_img_path)
+            await status_msg.delete()
+            await message.answer_photo(
+                photo=photo_file,
+                caption=response_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=keyboard,
+            )
+        except Exception as img_err:
+            logger.warning(f"Could not send watermarked photo card: {img_err}")
+            await status_msg.edit_text(response_text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
+
 
     elif result.status == "NOT_FOUND":
         await status_msg.edit_text(

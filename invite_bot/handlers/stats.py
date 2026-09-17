@@ -13,8 +13,8 @@ import messages as msg
 router = Router()
 
 
-async def show_stats(target: Message | CallbackQuery, user):
-    """Fetch and display personal competition score, invites count, and rank."""
+async def show_stats(target: Message | CallbackQuery, user, bot: Bot = None):
+    """Fetch and display personal competition score, invites count, and rank as a watermarked card."""
     comp = await db.get_active_competition()
     if not comp:
         text = msg.NO_ACTIVE_COMPETITION_TEXT
@@ -39,18 +39,54 @@ async def show_stats(target: Message | CallbackQuery, user):
         rank=rank,
     )
 
-    if isinstance(target, CallbackQuery):
-        await target.message.edit_text(
-            stats_card,
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True,
+    chat_id = target.chat.id if isinstance(target, Message) else target.message.chat.id
+
+    try:
+        from aiogram.types import FSInputFile
+        from freshminds_card_generator import generate_stats_card_image
+
+        card_path = generate_stats_card_image(
+            first_name=user.first_name or "Student",
+            active_points=active_points,
+            total_joins=total_joins,
+            rank=rank,
+            output_filename=f"stats_{user.id}.png",
         )
-    else:
-        await target.answer(
-            stats_card,
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True,
-        )
+        photo_file = FSInputFile(card_path)
+
+        if bot:
+            await bot.send_photo(
+                chat_id=chat_id,
+                photo=photo_file,
+                caption=stats_card,
+                parse_mode=ParseMode.HTML,
+            )
+        elif isinstance(target, Message):
+            await target.answer_photo(
+                photo=photo_file,
+                caption=stats_card,
+                parse_mode=ParseMode.HTML,
+            )
+        else:
+            await target.message.answer_photo(
+                photo=photo_file,
+                caption=stats_card,
+                parse_mode=ParseMode.HTML,
+            )
+    except Exception:
+        if isinstance(target, CallbackQuery):
+            await target.message.edit_text(
+                stats_card,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+        else:
+            await target.answer(
+                stats_card,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+
 
 
 
@@ -67,7 +103,7 @@ async def handle_my_stats(message: Message, bot: Bot):
         await send_feature_lock_message(message, "📊 የእርስዎን ውጤት", "retry_feature_stats")
         return
 
-    await show_stats(message, user)
+    await show_stats(message, user, bot)
 
 
 @router.callback_query(F.data == "retry_feature_stats")
@@ -77,4 +113,5 @@ async def handle_retry_stats(callback: CallbackQuery, bot: Bot):
         await callback.answer("⚠️ እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ!", show_alert=True)
         return
     await callback.answer("✅ ተረጋግጧል!", show_alert=False)
-    await show_stats(callback, callback.from_user)
+    await show_stats(callback, callback.from_user, bot)
+

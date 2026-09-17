@@ -193,12 +193,35 @@ async def handle_unicourse_by_idx(callback: CallbackQuery, bot: Bot):
     card_text = msg.format_university_courses_card(official_name, streams)
     keyboard = build_university_course_card_keyboard(idx)
 
-    await callback.message.edit_text(
-        card_text,
-        parse_mode=ParseMode.HTML,
-        reply_markup=keyboard,
-        disable_web_page_preview=True,
-    )
+    # Generate watermarked photo card
+    try:
+        import os, tempfile
+        from aiogram.types import FSInputFile
+        from freshminds_card_generator import generate_university_course_card_image
+
+        temp_path = os.path.join(tempfile.gettempdir(), f"unicourse_{idx}.png")
+        generate_university_course_card_image(
+            university_name=official_name,
+            streams_dict=streams,
+            output_filename=temp_path,
+        )
+        photo_file = FSInputFile(temp_path)
+        await callback.message.delete()
+        await callback.message.answer_photo(
+            photo=photo_file,
+            caption=card_text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+        )
+    except Exception as err:
+        logger.warning(f"Could not send watermarked uni course photo card: {err}")
+        await callback.message.edit_text(
+            card_text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+            disable_web_page_preview=True,
+        )
+
 
 
 @router.callback_query(F.data.startswith("uni_view_"))

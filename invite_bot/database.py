@@ -1138,6 +1138,14 @@ class Database:
             await db.commit()
             return cursor.rowcount > 0
 
+    async def get_all_user_ids(self) -> list[int]:
+        """Fetch list of all registered bot user IDs for broadcast."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("SELECT user_id FROM users")
+            rows = await cursor.fetchall()
+            return [r[0] for r in rows if r[0]]
+
+
 
 
 

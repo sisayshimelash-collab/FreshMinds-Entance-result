@@ -89,20 +89,44 @@ async def show_courses_list(target: Message | CallbackQuery):
         "የሚፈልጉትን ኮርስ በመጫን <b>ሞጁሎች፣ ማጠቃለያ ኖቶች፣ የፈተና ሞዴሎች እና ቪዲዮዎችን</b> በነፃ ያግኙ:\n\n"
         "👇 <b>ኮርስ ይምረጡ:</b>"
     )
-    if isinstance(target, CallbackQuery):
-        await target.message.edit_text(
-            text,
-            parse_mode=ParseMode.HTML,
-            reply_markup=build_courses_keyboard(courses),
-            disable_web_page_preview=True,
-        )
-    else:
-        await target.answer(
-            text,
-            parse_mode=ParseMode.HTML,
-            reply_markup=build_courses_keyboard(courses),
-            disable_web_page_preview=True,
-        )
+
+    try:
+        from aiogram.types import FSInputFile
+        from freshminds_card_generator import generate_resources_card_image
+
+        card_path = generate_resources_card_image("FRESHMAN RESOURCES & EXAM BANK HUB")
+        photo_file = FSInputFile(card_path)
+
+        if isinstance(target, CallbackQuery):
+            await target.message.answer_photo(
+                photo=photo_file,
+                caption=text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=build_courses_keyboard(courses),
+            )
+        else:
+            await target.answer_photo(
+                photo=photo_file,
+                caption=text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=build_courses_keyboard(courses),
+            )
+    except Exception:
+        if isinstance(target, CallbackQuery):
+            await target.message.edit_text(
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=build_courses_keyboard(courses),
+                disable_web_page_preview=True,
+            )
+        else:
+            await target.answer(
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=build_courses_keyboard(courses),
+                disable_web_page_preview=True,
+            )
+
 
 
 @router.message(F.text == msg.BTN_RESOURCES)

@@ -85,13 +85,34 @@ async def generate_and_send_link(target: Message | CallbackQuery, bot: Bot, user
         parse_mode=ParseMode.HTML,
         disable_web_page_preview=True,
     )
-    await bot.send_message(
-        chat_id=chat_id,
-        text=link_card,
-        parse_mode=ParseMode.HTML,
-        reply_markup=get_share_keyboard(invite_link),
-        disable_web_page_preview=True,
-    )
+
+    try:
+        from aiogram.types import FSInputFile
+        from freshminds_card_generator import generate_invite_card_image
+
+        card_path = generate_invite_card_image(
+            first_name=user.first_name or "Student",
+            invite_link=invite_link,
+            output_filename=f"invite_{user.id}.png",
+        )
+        photo_file = FSInputFile(card_path)
+
+        await bot.send_photo(
+            chat_id=chat_id,
+            photo=photo_file,
+            caption=link_card,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_share_keyboard(invite_link),
+        )
+    except Exception:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=link_card,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_share_keyboard(invite_link),
+            disable_web_page_preview=True,
+        )
+
 
 
 @router.message(F.text == msg.BTN_GET_LINK)

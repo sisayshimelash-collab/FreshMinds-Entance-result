@@ -39,8 +39,14 @@ class AdminEditUniversityCourseState(StatesGroup):
     waiting_for_new_courses = State()
 
 
+class AdminBroadcastState(StatesGroup):
+    waiting_for_message = State()
+    confirm_broadcast = State()
+
+
 class AdminCourseState(StatesGroup):
     waiting_for_name = State()
+
 
 
 
@@ -268,11 +274,195 @@ async def cb_admin_hints(callback: CallbackQuery):
         "admin_hint_add": "💡 To add points: Send <code>/add_points &lt;user_id&gt; &lt;points&gt;</code> (e.g. <code>/add_points 12345678 5</code>)",
         "admin_hint_sub": "💡 To deduct points: Send <code>/remove_points &lt;user_id&gt; &lt;points&gt;</code> (e.g. <code>/remove_points 12345678 2</code>)",
         "admin_hint_audit": "💡 To audit a user: Send <code>/audit &lt;user_id&gt;</code> (e.g. <code>/audit 12345678</code>)",
-        "admin_hint_bc": "💡 To broadcast: Send <code>/broadcast &lt;Your Announcement Text&gt;</code>",
         "admin_hint_reset": "💡 To reset weekly competition: Send <code>/reset_week Week 1</code>",
     }
     hint_text = hints.get(callback.data, "Use the command directly in chat.")
     await callback.answer(hint_text, show_alert=True)
+
+
+# ── Broadcast Announcement Engine ─────────────────────────────────────────────
+
+@router.callback_query(F.data == "admin_hint_bc")
+@router.message(Command("broadcast"))
+async def start_broadcast_wizard(event: Message | CallbackQuery, state: FSMContext):
+    """Initiates broadcast announcement wizard for admin."""
+    user = event.from_user
+    if not user or not is_admin(user.id):
+        return
+
+    await state.set_state(AdminBroadcastState.waiting_for_message)
+
+    text = (
+        "📢 <b>FreshMinds Broadcast Announcement Wizard</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Please <b>send or forward the message</b> you want to broadcast to ALL registered bot users.\n\n"
+        "<b>Supported Message Types:</b>\n"
+        "• Formatted Text / HTML announcement\n"
+        "• Photo / Video / Voice / Document with caption\n"
+        "• Or <b>FORWARD a post directly from your Telegram channel!</b>\n\n"
+        "❌ Type <b>/cancel</b> to abort."
+    )
+    cancel_markup = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel Broadcast", callback_data="admin_main_menu")]]
+    )
+
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+        if isinstance(event.message, Message):
+            await event.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=cancel_markup)
+    else:
+        # Check if direct text was passed with /broadcast <text>
+        args = event.text.partition(" ")[2].strip()
+        if args:
+            await state.update_data(broadcast_chat_id=event.chat.id, broadcast_msg_id=event.message_id)
+            user_ids = await db.get_all_user_ids()
+            await state.set_state(AdminBroadcastState.confirm_broadcast)
+            confirm_markup = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(text="✅ Start Broadcast Now", callback_data="admin_bc_confirm"),
+                        InlineKeyboardButton(text="❌ Cancel", callback_data="admin_bc_cancel"),
+                    ]
+                ]
+            )
+            await event.answer(
+                f"📢 <b>Broadcast Confirmation & Preview</b>\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                f"👥 Target Audience: <b>{len(user_ids):,} registered bot users</b>\n\n"
+                "Are you sure you want to broadcast this announcement to all bot users now?",
+                parse_mode=ParseMode.HTML,
+                reply_markup=confirm_markup,
+            )
+            return
+
+        await event.answer(text, parse_mode=ParseMode.HTML, reply_markup=cancel_markup)
+
+
+@router.message(AdminBroadcastState.waiting_for_message)
+async def process_broadcast_post(message: Message, state: FSMContext):
+    """Captures post to broadcast and prompts for admin confirmation."""
+    if not is_admin(message.from_user.id):
+        return
+
+    if (message.text or "").strip() in ("/cancel", "cancel"):
+        await state.clear()
+        await message.answer("❌ Broadcast cancelled.")
+        return
+
+    await state.update_data(
+        broadcast_chat_id=message.chat.id,
+        broadcast_msg_id=message.message_id,
+    )
+    await state.set_state(AdminBroadcastState.confirm_broadcast)
+
+    user_ids = await db.get_all_user_ids()
+    confirm_markup = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Start Broadcast Now", callback_data="admin_bc_confirm"),
+                InlineKeyboardButton(text="❌ Cancel", callback_data="admin_bc_cancel"),
+            ]
+        ]
+    )
+
+    await message.reply(
+        f"📢 <b>Broadcast Confirmation & Preview</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"👥 Target Audience: <b>{len(user_ids):,} registered bot users</b>\n\n"
+        "The message above will be sent to all users.\n"
+        "Are you sure you want to start transmission now?",
+        parse_mode=ParseMode.HTML,
+        reply_markup=confirm_markup,
+    )
+
+
+@router.callback_query(F.data == "admin_bc_cancel")
+async def cb_admin_bc_cancel(callback: CallbackQuery, state: FSMContext):
+    """Cancels broadcast transmission."""
+    await state.clear()
+    await callback.answer("Broadcast cancelled.", show_alert=True)
+    if isinstance(callback.message, Message):
+        await callback.message.edit_text("❌ Broadcast deployment cancelled by admin.")
+
+
+@router.callback_query(F.data == "admin_bc_confirm")
+async def cb_admin_bc_confirm(callback: CallbackQuery, bot: Bot, state: FSMContext):
+    """Executes high-performance rate-limited broadcast transmission to all bot users."""
+    if not is_admin(callback.from_user.id):
+        return
+
+    data = await state.get_data()
+    from_chat_id = data.get("broadcast_chat_id")
+    msg_id = data.get("broadcast_msg_id")
+    await state.clear()
+
+    if not from_chat_id or not msg_id:
+        await callback.answer("⚠️ Broadcast session expired!", show_alert=True)
+        return
+
+    await callback.answer("🚀 Broadcast started...", show_alert=False)
+
+    user_ids = await db.get_all_user_ids()
+    total_users = len(user_ids)
+
+    status_msg = None
+    if isinstance(callback.message, Message):
+        status_msg = await callback.message.edit_text(
+            f"🚀 <b>Broadcasting in Progress...</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"Progress: <b>0 / {total_users:,} (0%)</b>\n"
+            f"Successful: <b>0 ✅</b> | Blocked/Failed: <b>0 ❌</b>",
+            parse_mode=ParseMode.HTML,
+        )
+
+    import time
+    start_time = time.time()
+    success_count = 0
+    fail_count = 0
+
+    for idx, target_id in enumerate(user_ids, start=1):
+        try:
+            await bot.copy_message(
+                chat_id=target_id,
+                from_chat_id=from_chat_id,
+                message_id=msg_id,
+            )
+            success_count += 1
+        except Exception:
+            fail_count += 1
+
+        # Rate limiting: 0.035s sleep = ~28 messages / sec (well within Telegram limits)
+        await asyncio.sleep(0.035)
+
+        # Update live progress every 50 users or at the end
+        if status_msg and (idx % 50 == 0 or idx == total_users):
+            percent = (idx / total_users * 100) if total_users > 0 else 100
+            try:
+                await status_msg.edit_text(
+                    f"🚀 <b>Broadcasting in Progress...</b>\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n"
+                    f"Progress: <b>{idx:,} / {total_users:,} ({percent:.1f}%)</b>\n"
+                    f"Successful: <b>{success_count:,} ✅</b> | Blocked/Failed: <b>{fail_count:,} ❌</b>",
+                    parse_mode=ParseMode.HTML,
+                )
+            except Exception:
+                pass
+
+    elapsed = time.time() - start_time
+    summary_text = (
+        "🎉 <b>Broadcast Completed Successfully!</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"📊 Total Target Audience: <b>{total_users:,}</b>\n"
+        f"✅ Delivered Successfully: <b>{success_count:,}</b>\n"
+        f"❌ Blocked / Failed: <b>{fail_count:,}</b>\n"
+        f"⏱️ Time Taken: <b>{elapsed:.1f} seconds</b>"
+    )
+
+    if status_msg:
+        await status_msg.edit_text(summary_text, parse_mode=ParseMode.HTML)
+    else:
+        await bot.send_message(chat_id=callback.from_user.id, text=summary_text, parse_mode=ParseMode.HTML)
+
 
 
 @router.callback_query(F.data == "admin_toggle_placement")
