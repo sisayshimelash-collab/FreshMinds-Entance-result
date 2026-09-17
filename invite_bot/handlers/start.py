@@ -32,7 +32,10 @@ def get_main_menu_keyboard(
     if show_placement:
         rows.append([KeyboardButton(text=msg.BTN_PLACEMENT)])
 
-    rows.append([KeyboardButton(text=msg.BTN_RESOURCES)])
+    rows.append([
+        KeyboardButton(text=msg.BTN_RESOURCES),
+        KeyboardButton(text=msg.BTN_UNI_COURSES),
+    ])
     rows.append([
         KeyboardButton(text=msg.BTN_UNIVERSITIES),
         KeyboardButton(text=msg.BTN_GPA_CALC),
@@ -53,6 +56,7 @@ def get_main_menu_keyboard(
         resize_keyboard=True,
         persistent=True,
     )
+
 
 
 def get_welcome_join_inline_markup(referrer_id: Optional[int] = None) -> InlineKeyboardMarkup:

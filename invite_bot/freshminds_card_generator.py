@@ -12,36 +12,84 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 def _draw_watermark_background(width: int, height: int) -> Image.Image:
-    """Creates a base 1080px dark navy gradient image with semi-transparent diagonal watermarks."""
-    img = Image.new("RGBA", (width, height), (13, 27, 42, 255))
+    """Creates a base dark navy gradient image with high-contrast, rotated diagonal FRESHMINDS ACADEMY watermarks."""
+    # 1. Base dark navy background canvas
+    img = Image.new("RGBA", (width, height), (10, 20, 38, 255))
 
-    # Watermark layer
-    wm_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    wm_draw = ImageDraw.Draw(wm_layer)
+    # 2. Oversized diagonal watermark pattern layer
+    diag_w = int(width * 1.5)
+    diag_h = int(height * 1.5)
+    pattern_img = Image.new("RGBA", (diag_w, diag_h), (0, 0, 0, 0))
+    p_draw = ImageDraw.Draw(pattern_img)
 
     try:
-        wm_font = ImageFont.truetype("arialbd.ttf", 64)
+        wm_font = ImageFont.truetype("arialbd.ttf", 52)
+        big_wm_font = ImageFont.truetype("arialbd.ttf", 85)
     except Exception:
         wm_font = ImageFont.load_default()
+        big_wm_font = ImageFont.load_default()
 
-    # Repeat diagonal watermark text "FRESHMINDS ACADEMY" across background
-    for y in range(-200, height + 400, 180):
-        for x in range(-300, width + 500, 600):
-            wm_draw.text((x, y), "FRESHMINDS ACADEMY", font=wm_font, fill=(255, 255, 255, 18))
+    # Repeat diagonal watermark text "FRESHMINDS ACADEMY" across pattern canvas
+    for y in range(0, diag_h, 130):
+        offset = (y // 130 % 2) * 220
+        for x in range(-300 + offset, diag_w + 300, 500):
+            # Alternating cyan and golden semi-transparent watermarks for vibrant contrast
+            fill_color = (56, 189, 248, 48) if (x + y) % 2 == 0 else (251, 191, 36, 42)
+            p_draw.text((x, y), "FRESHMINDS ACADEMY", font=wm_font, fill=fill_color)
 
-    # Large Center Transparent Watermark Logo
-    center_y = (height // 2) - 100
-    wm_draw.text((80, center_y), "FRESHMINDS", font=wm_font, fill=(56, 189, 248, 25))
-    wm_draw.text((220, center_y + 80), "ACADEMY", font=wm_font, fill=(56, 189, 248, 25))
+    # Rotate -30 degrees diagonally
+    rotated_pattern = pattern_img.rotate(-30, resample=Image.Resampling.BICUBIC, expand=False)
 
-    img = Image.alpha_composite(img, wm_layer)
+    # Crop rotated pattern to fit (width x height)
+    left = (diag_w - width) // 2
+    top = (diag_h - height) // 2
+    cropped_wm = rotated_pattern.crop((left, top, left + width, top + height))
+
+    img = Image.alpha_composite(img, cropped_wm)
+
+    # 3. Large Center Watermark Stamp Logo
+    center_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    c_draw = ImageDraw.Draw(center_layer)
+    center_y = (height // 2) - 80
+    c_draw.text((width // 2 - 300, center_y), "FRESHMINDS", font=big_wm_font, fill=(56, 189, 248, 55))
+    c_draw.text((width // 2 - 230, center_y + 90), "ACADEMY", font=big_wm_font, fill=(251, 191, 36, 55))
+
+    img = Image.alpha_composite(img, center_layer)
+
+    # 4. Frame Borders
     draw = ImageDraw.Draw(img)
-
-    # Decorative Border Frame
-    draw.rectangle([(30, 30), (width - 30, height - 30)], outline=(56, 189, 248, 120), width=4)
-    draw.rectangle([(42, 42), (width - 42, height - 42)], outline=(251, 191, 36, 100), width=2)
+    draw.rectangle([(25, 25), (width - 25, height - 25)], outline=(56, 189, 248, 140), width=4)
+    draw.rectangle([(35, 35), (width - 35, height - 35)], outline=(251, 191, 36, 120), width=2)
 
     return img
+
+
+
+def _apply_watermark_overlay(img: Image.Image) -> Image.Image:
+    """Applies a crisp semi-transparent diagonal 'FRESHMINDS ACADEMY' watermark stamp layer over the final image."""
+    width, height = img.size
+    diag_w = int(width * 1.4)
+    diag_h = int(height * 1.4)
+    overlay = Image.new("RGBA", (diag_w, diag_h), (0, 0, 0, 0))
+    o_draw = ImageDraw.Draw(overlay)
+
+    try:
+        stamp_font = ImageFont.truetype("arialbd.ttf", 55)
+    except Exception:
+        stamp_font = ImageFont.load_default()
+
+    # Draw repeating diagonal stamp across overlay
+    for y in range(0, diag_h, 180):
+        offset = (y // 180 % 2) * 200
+        for x in range(-200 + offset, diag_w, 480):
+            o_draw.text((x, y), "FRESHMINDS ACADEMY", font=stamp_font, fill=(255, 255, 255, 30))
+
+    rotated_overlay = overlay.rotate(-28, resample=Image.Resampling.BICUBIC, expand=False)
+    left = (diag_w - width) // 2
+    top = (diag_h - height) // 2
+    cropped = rotated_overlay.crop((left, top, left + width, top + height))
+
+    return Image.alpha_composite(img, cropped)
 
 
 def generate_placement_card_image(
@@ -74,14 +122,14 @@ def generate_placement_card_image(
         value_font = ImageFont.load_default()
         footer_font = ImageFont.load_default()
 
-    # Header Box
-    draw.rectangle([(70, 70), (width - 70, 230)], fill=(30, 41, 59, 240), outline=(56, 189, 248, 150), width=2)
+    # Header Box (Translucent)
+    draw.rectangle([(70, 70), (width - 70, 230)], fill=(30, 41, 59, 180), outline=(56, 189, 248, 180), width=2)
     draw.text((90, 95), "ETHIOPIAN MINISTRY OF EDUCATION", font=title_font, fill=(148, 163, 184))
     draw.text((90, 150), "UNIVERSITY PLACEMENT RESULT", font=subtitle_font, fill=(251, 191, 36))
 
-    # Main Content Box
+    # Main Content Box (Translucent)
     box_top, box_bottom = 270, 1140
-    draw.rectangle([(70, box_top), (width - 70, box_bottom)], fill=(15, 23, 42, 230), outline=(56, 189, 248, 180), width=3)
+    draw.rectangle([(70, box_top), (width - 70, box_bottom)], fill=(15, 23, 42, 160), outline=(56, 189, 248, 180), width=3)
 
     curr_y = box_top + 45
     fields = [
@@ -107,9 +155,12 @@ def generate_placement_card_image(
         curr_y += 30
 
     # Footer Watermark Banner
-    draw.rectangle([(70, 1170), (width - 70, 1280)], fill=(30, 41, 59, 250), outline=(251, 191, 36, 200), width=3)
+    draw.rectangle([(70, 1170), (width - 70, 1280)], fill=(30, 41, 59, 200), outline=(251, 191, 36, 200), width=3)
     draw.text((100, 1192), "🎓 FRESHMINDS ACADEMY — @FreshMinds_Academy", font=footer_font, fill=(251, 191, 36))
     draw.text((100, 1234), "Join Telegram Channel for 1st Year Modules & Video Lessons", font=label_font, fill=(248, 250, 252))
+
+    # Apply overlay watermark
+    img = _apply_watermark_overlay(img)
 
     out_dir = os.path.dirname(output_filename)
     if out_dir and not os.path.exists(out_dir):
@@ -117,6 +168,7 @@ def generate_placement_card_image(
 
     img.save(output_filename, "PNG")
     return os.path.abspath(output_filename)
+
 
 
 def generate_university_course_card_image(
@@ -143,13 +195,13 @@ def generate_university_course_card_image(
         footer_font = ImageFont.load_default()
 
     # Header Box
-    draw.rectangle([(70, 70), (width - 70, 230)], fill=(30, 41, 59, 240), outline=(251, 191, 36, 180), width=3)
+    draw.rectangle([(70, 70), (width - 70, 230)], fill=(30, 41, 59, 180), outline=(251, 191, 36, 180), width=3)
     draw.text((90, 95), university_name.upper(), font=title_font, fill=(251, 191, 36))
     draw.text((90, 158), "1ST SEMESTER FRESHMAN COURSE GUIDE", font=sub_font, fill=(56, 189, 248))
 
     # Main Content Box
     box_top, box_bottom = 260, 1200
-    draw.rectangle([(70, box_top), (width - 70, box_bottom)], fill=(15, 23, 42, 230), outline=(56, 189, 248, 180), width=3)
+    draw.rectangle([(70, box_top), (width - 70, box_bottom)], fill=(15, 23, 42, 160), outline=(56, 189, 248, 180), width=3)
 
     curr_y = box_top + 40
     for stream_name, courses in streams_dict.items():
@@ -163,9 +215,11 @@ def generate_university_course_card_image(
         curr_y += 30
 
     # Footer Watermark Banner
-    draw.rectangle([(70, 1230), (width - 70, 1340)], fill=(30, 41, 59, 250), outline=(251, 191, 36, 200), width=3)
+    draw.rectangle([(70, 1230), (width - 70, 1340)], fill=(30, 41, 59, 200), outline=(251, 191, 36, 200), width=3)
     draw.text((100, 1250), "🎓 FRESHMINDS ACADEMY — @FreshMinds_Academy", font=footer_font, fill=(251, 191, 36))
     draw.text((100, 1292), "Join Telegram for 1st Year Modules & Video Explanations", font=sub_font, fill=(248, 250, 252))
+
+    img = _apply_watermark_overlay(img)
 
     out_dir = os.path.dirname(output_filename)
     if out_dir and not os.path.exists(out_dir):
@@ -201,19 +255,19 @@ def generate_gpa_report_card_image(
         footer_font = ImageFont.load_default()
 
     # Header Box
-    draw.rectangle([(70, 70), (width - 70, 230)], fill=(30, 41, 59, 240), outline=(56, 189, 248, 180), width=3)
+    draw.rectangle([(70, 70), (width - 70, 230)], fill=(30, 41, 59, 180), outline=(56, 189, 248, 180), width=3)
     draw.text((90, 95), "FRESHMINDS GPA CALCULATOR", font=title_font, fill=(248, 250, 252))
     draw.text((90, 158), "OFFICIAL SEMESTER REPORT CARD", font=sub_font, fill=(56, 189, 248))
 
     # Main GPA Display Box
-    draw.rectangle([(70, 260), (width - 70, 460)], fill=(15, 23, 42, 240), outline=(251, 191, 36, 200), width=3)
+    draw.rectangle([(70, 260), (width - 70, 460)], fill=(15, 23, 42, 180), outline=(251, 191, 36, 200), width=3)
     draw.text((110, 290), "CALCULATED SEMESTER GPA", font=sub_font, fill=(148, 163, 184))
     draw.text((110, 345), f"{gpa:.2f} / 4.00", font=gpa_font, fill=(251, 191, 36))
     draw.text((600, 365), f"Total Cr.Hr: {total_ch}  |  Points: {total_pts:.1f}", font=sub_font, fill=(56, 189, 248))
 
     # Courses Breakdown Box
     box_top, box_bottom = 490, 1150
-    draw.rectangle([(70, box_top), (width - 70, box_bottom)], fill=(15, 23, 42, 230), outline=(56, 189, 248, 180), width=3)
+    draw.rectangle([(70, box_top), (width - 70, box_bottom)], fill=(15, 23, 42, 160), outline=(56, 189, 248, 180), width=3)
     draw.text((110, box_top + 30), "COURSES GRADE BREAKDOWN:", font=sub_font, fill=(56, 189, 248))
 
     curr_y = box_top + 85
@@ -226,9 +280,11 @@ def generate_gpa_report_card_image(
         curr_y += 50
 
     # Footer Watermark Banner
-    draw.rectangle([(70, 1180), (width - 70, 1290)], fill=(30, 41, 59, 250), outline=(251, 191, 36, 200), width=3)
+    draw.rectangle([(70, 1180), (width - 70, 1290)], fill=(30, 41, 59, 200), outline=(251, 191, 36, 200), width=3)
     draw.text((100, 1202), "🎓 FRESHMINDS ACADEMY — @FreshMinds_Academy", font=footer_font, fill=(251, 191, 36))
     draw.text((100, 1244), "Join Telegram Channel for Freshman Courses & Mobile App", font=sub_font, fill=(248, 250, 252))
+
+    img = _apply_watermark_overlay(img)
 
     out_dir = os.path.dirname(output_filename)
     if out_dir and not os.path.exists(out_dir):
@@ -266,13 +322,13 @@ def generate_stats_card_image(
         footer_font = ImageFont.load_default()
 
     # Header Box
-    draw.rectangle([(70, 70), (width - 70, 230)], fill=(30, 41, 59, 240), outline=(56, 189, 248, 180), width=3)
+    draw.rectangle([(70, 70), (width - 70, 230)], fill=(30, 41, 59, 180), outline=(56, 189, 248, 180), width=3)
     draw.text((90, 95), "FRESHMINDS INVITE COMPETITION", font=title_font, fill=(251, 191, 36))
     draw.text((90, 158), f"PERSONAL PERFORMANCE CARD — {first_name.upper()}", font=sub_font, fill=(248, 250, 252))
 
     # Main Stats Display Box
     box_top, box_bottom = 260, 1150
-    draw.rectangle([(70, box_top), (width - 70, box_bottom)], fill=(15, 23, 42, 230), outline=(56, 189, 248, 180), width=3)
+    draw.rectangle([(70, box_top), (width - 70, box_bottom)], fill=(15, 23, 42, 160), outline=(56, 189, 248, 180), width=3)
 
     curr_y = box_top + 50
     rank_str = f"#{rank}" if isinstance(rank, int) else str(rank)
@@ -291,14 +347,16 @@ def generate_stats_card_image(
         curr_y += 35
 
     # Motivational Tip Box inside Main
-    draw.rectangle([(110, curr_y + 10), (width - 110, box_bottom - 40)], fill=(30, 41, 59, 200), outline=(251, 191, 36, 120), width=2)
+    draw.rectangle([(110, curr_y + 10), (width - 110, box_bottom - 40)], fill=(30, 41, 59, 180), outline=(251, 191, 36, 120), width=2)
     draw.text((130, curr_y + 35), "💡 PRO TIP: Share your referral link with school groups", font=stat_lbl_font, fill=(251, 191, 36))
     draw.text((130, curr_y + 80), "and classmates to boost your ranking and win top prizes!", font=stat_lbl_font, fill=(248, 250, 252))
 
     # Footer Watermark Banner
-    draw.rectangle([(70, 1180), (width - 70, 1290)], fill=(30, 41, 59, 250), outline=(251, 191, 36, 200), width=3)
+    draw.rectangle([(70, 1180), (width - 70, 1290)], fill=(30, 41, 59, 200), outline=(251, 191, 36, 200), width=3)
     draw.text((100, 1202), "🎓 FRESHMINDS ACADEMY — @FreshMinds_Academy", font=footer_font, fill=(251, 191, 36))
     draw.text((100, 1244), "Join Telegram Channel for Freshman Courses & Mobile App", font=sub_font, fill=(248, 250, 252))
+
+    img = _apply_watermark_overlay(img)
 
     out_dir = os.path.dirname(output_filename)
     if out_dir and not os.path.exists(out_dir):
@@ -334,13 +392,13 @@ def generate_leaderboard_card_image(
         footer_font = ImageFont.load_default()
 
     # Header Box
-    draw.rectangle([(70, 70), (width - 70, 230)], fill=(30, 41, 59, 240), outline=(251, 191, 36, 180), width=3)
+    draw.rectangle([(70, 70), (width - 70, 230)], fill=(30, 41, 59, 180), outline=(251, 191, 36, 180), width=3)
     draw.text((90, 95), "🏆 LEADERBOARD RANKINGS", font=title_font, fill=(251, 191, 36))
     draw.text((90, 158), comp_title.upper() if comp_title else "FRESHMINDS INVITE COMPETITION", font=sub_font, fill=(56, 189, 248))
 
     # Main Board Box
     box_top, box_bottom = 260, 1200
-    draw.rectangle([(70, box_top), (width - 70, box_bottom)], fill=(15, 23, 42, 230), outline=(56, 189, 248, 180), width=3)
+    draw.rectangle([(70, box_top), (width - 70, box_bottom)], fill=(15, 23, 42, 160), outline=(56, 189, 248, 180), width=3)
 
     curr_y = box_top + 35
     draw.text((110, curr_y), "🥇 TOP REFERRERS BOARD:", font=row_font, fill=(251, 191, 36))
@@ -359,14 +417,16 @@ def generate_leaderboard_card_image(
 
     # Personal Rank Section
     rank_str = f"#{my_rank}" if isinstance(my_rank, int) else str(my_rank)
-    draw.rectangle([(110, curr_y + 10), (width - 110, box_bottom - 30)], fill=(30, 41, 59, 220), outline=(56, 189, 248, 150), width=2)
+    draw.rectangle([(110, curr_y + 10), (width - 110, box_bottom - 30)], fill=(30, 41, 59, 180), outline=(56, 189, 248, 150), width=2)
     draw.text((130, curr_y + 35), f"👤 YOUR CURRENT POSITION: {rank_str}", font=row_font, fill=(251, 191, 36))
     draw.text((130, curr_y + 85), f"⭐ YOUR TOTAL POINTS: {my_points} PTS", font=item_font, fill=(248, 250, 252))
 
     # Footer Watermark Banner
-    draw.rectangle([(70, 1230), (width - 70, 1340)], fill=(30, 41, 59, 250), outline=(251, 191, 36, 200), width=3)
+    draw.rectangle([(70, 1230), (width - 70, 1340)], fill=(30, 41, 59, 200), outline=(251, 191, 36, 200), width=3)
     draw.text((100, 1250), "🎓 FRESHMINDS ACADEMY — @FreshMinds_Academy", font=footer_font, fill=(251, 191, 36))
     draw.text((100, 1292), "Join Telegram Channel for 1st Year Modules & Video Explanations", font=sub_font, fill=(248, 250, 252))
+
+    img = _apply_watermark_overlay(img)
 
     out_dir = os.path.dirname(output_filename)
     if out_dir and not os.path.exists(out_dir):
@@ -402,18 +462,18 @@ def generate_invite_card_image(
         footer_font = ImageFont.load_default()
 
     # Header Box
-    draw.rectangle([(70, 70), (width - 70, 230)], fill=(30, 41, 59, 240), outline=(56, 189, 248, 180), width=3)
+    draw.rectangle([(70, 70), (width - 70, 230)], fill=(30, 41, 59, 180), outline=(56, 189, 248, 180), width=3)
     draw.text((90, 95), "FRESHMINDS REFER & WIN", font=title_font, fill=(251, 191, 36))
     draw.text((90, 158), f"OFFICIAL REFERRAL CARD — {first_name.upper()}", font=sub_font, fill=(248, 250, 252))
 
     # Main Card Box
     box_top, box_bottom = 260, 1150
-    draw.rectangle([(70, box_top), (width - 70, box_bottom)], fill=(15, 23, 42, 230), outline=(56, 189, 248, 180), width=3)
+    draw.rectangle([(70, box_top), (width - 70, box_bottom)], fill=(15, 23, 42, 160), outline=(56, 189, 248, 180), width=3)
 
     curr_y = box_top + 45
     draw.text((110, curr_y), "🚀 YOUR EXCLUSIVE REFERRAL LINK:", font=lbl_font, fill=(148, 163, 184))
     curr_y += 45
-    draw.rectangle([(110, curr_y), (width - 110, curr_y + 80)], fill=(30, 41, 59, 240), outline=(56, 189, 248, 200), width=2)
+    draw.rectangle([(110, curr_y), (width - 110, curr_y + 80)], fill=(30, 41, 59, 180), outline=(56, 189, 248, 200), width=2)
     draw.text((130, curr_y + 20), invite_link, font=link_font, fill=(56, 189, 248))
     curr_y += 120
 
@@ -429,9 +489,11 @@ def generate_invite_card_image(
         curr_y += 50
 
     # Footer Watermark Banner
-    draw.rectangle([(70, 1180), (width - 70, 1290)], fill=(30, 41, 59, 250), outline=(251, 191, 36, 200), width=3)
+    draw.rectangle([(70, 1180), (width - 70, 1290)], fill=(30, 41, 59, 200), outline=(251, 191, 36, 200), width=3)
     draw.text((100, 1202), "🎓 FRESHMINDS ACADEMY — @FreshMinds_Academy", font=footer_font, fill=(251, 191, 36))
     draw.text((100, 1244), "Join Telegram Channel for Freshman Courses & Mobile App", font=sub_font, fill=(248, 250, 252))
+
+    img = _apply_watermark_overlay(img)
 
     out_dir = os.path.dirname(output_filename)
     if out_dir and not os.path.exists(out_dir):
@@ -464,13 +526,13 @@ def generate_resources_card_image(
         footer_font = ImageFont.load_default()
 
     # Header Box
-    draw.rectangle([(70, 70), (width - 70, 230)], fill=(30, 41, 59, 240), outline=(251, 191, 36, 180), width=3)
+    draw.rectangle([(70, 70), (width - 70, 230)], fill=(30, 41, 59, 180), outline=(251, 191, 36, 180), width=3)
     draw.text((90, 95), "FRESHMINDS COURSE RESOURCE HUB", font=title_font, fill=(251, 191, 36))
     draw.text((90, 158), course_name.upper(), font=sub_font, fill=(56, 189, 248))
 
     # Main Card Box
     box_top, box_bottom = 260, 1150
-    draw.rectangle([(70, box_top), (width - 70, box_bottom)], fill=(15, 23, 42, 230), outline=(56, 189, 248, 180), width=3)
+    draw.rectangle([(70, box_top), (width - 70, box_bottom)], fill=(15, 23, 42, 160), outline=(56, 189, 248, 180), width=3)
 
     curr_y = box_top + 50
     items = [
@@ -489,9 +551,11 @@ def generate_resources_card_image(
         curr_y += 35
 
     # Footer Watermark Banner
-    draw.rectangle([(70, 1180), (width - 70, 1290)], fill=(30, 41, 59, 250), outline=(251, 191, 36, 200), width=3)
+    draw.rectangle([(70, 1180), (width - 70, 1290)], fill=(30, 41, 59, 200), outline=(251, 191, 36, 200), width=3)
     draw.text((100, 1202), "🎓 FRESHMINDS ACADEMY — @FreshMinds_Academy", font=footer_font, fill=(251, 191, 36))
     draw.text((100, 1244), "Join Telegram Channel for Freshman Courses & Mobile App", font=sub_font, fill=(248, 250, 252))
+
+    img = _apply_watermark_overlay(img)
 
     out_dir = os.path.dirname(output_filename)
     if out_dir and not os.path.exists(out_dir):
@@ -499,5 +563,6 @@ def generate_resources_card_image(
 
     img.save(output_filename, "PNG")
     return os.path.abspath(output_filename)
+
 
 

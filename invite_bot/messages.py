@@ -16,12 +16,14 @@ from config import (
 BTN_PLACEMENT = "🎓 የዩኒቨርሲቲ ምደባ (Placement)"
 BTN_RESOURCES = "📚 ኮርሶችና ማቴሪያሎች (Resources)"
 BTN_UNIVERSITIES = "🏛️ የዩኒቨርሲቲዎች መረጃ (Universities)"
+BTN_UNI_COURSES = "📖 የዩኒቨርሲቲ 1ኛ ሴሚስተር ኮርሶች (Course Guide)"
 BTN_GPA_CALC = "🧮 GPA ማስያ (Calculator)"
 BTN_GET_LINK = "🔗 የእኔ መጋበዣ ሊንክ (My Link)"
 BTN_MY_STATS = "📊 የእኔ ውጤት (My Stats)"
 BTN_LEADERBOARD = "🏆 የሳምንቱ ደረጃ (Leaderboard)"
 BTN_RULES = "🎁 ሽልማቶችና ህጎች (Prizes & Rules)"
 BTN_CHANNEL = "📢 ቻናላችን (Channel)"
+
 
 # ── No Active Competition Notice ──────────────────────────────────────────────
 NO_ACTIVE_COMPETITION_TEXT = (
