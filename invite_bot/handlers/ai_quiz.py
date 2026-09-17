@@ -180,8 +180,8 @@ async def handle_quiz_menu_callback(callback: CallbackQuery, bot: Bot):
 
 
 @router.callback_query(F.data.startswith("aiq_course_"))
-async def handle_quiz_course_select(callback: CallbackQuery):
-    """Prompts student to choose a chapter / topic for the selected course."""
+async def handle_quiz_course_select(callback: CallbackQuery, state: FSMContext):
+    """Prompts student to specify what topic or chapter they want for the selected course."""
     course_id = int(callback.data.partition("aiq_course_")[2])
     course = await db.get_course_by_id(course_id)
 
@@ -191,14 +191,18 @@ async def handle_quiz_course_select(callback: CallbackQuery):
 
     materials = await db.get_materials_by_course(course_id)
 
+    # Set FSM state so if user sends any text message, it's used as the custom topic prompt
+    await state.update_data(ai_course_id=course_id)
+    await state.set_state(AIQuizStates.waiting_for_custom_topic)
+
     await callback.answer()
     text = (
         f"{course.icon} <b>{course.name} — Interactive AI Quiz</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "የሚፈልጉትን ምዕራፍ ወይም የፈተና አይነት ይምረጡ:\n\n"
-        "• 📖 <b>የተጫኑ የትምህርት ይዘቶች:</b> በመምህራን በተጫኑ ይዘቶች መፈተን\n"
-        "• ✍️ <b>Custom Topic:</b> የሚፈልጉትን ማንኛውንም ርዕስ ጽፈው መፈተን\n"
-        "• 🎯 <b>Exam Simulation:</b> የ 5 ጥያቄዎች የ Midterm / Final ሞዴል ፈተና"
+        "✍️ <b>ምን ዓይነት የፈተና ጥያቄ እንዲዘጋጅልዎት ይፈልጋሉ?</b>\n\n"
+        "ፈተና እንዲሰራበት የሚፈልጉትን <b>ምዕራፍ፣ ርዕስ ወይም ጥያቄ በጽሁፍ ይላኩ</b>:\n"
+        "<i>(ምሳሌ፡ 'Chapter 1: Kinematics' ወይም 'Newton's Laws' ወይም 'Midterm Exam')</i>\n\n"
+        "👇 <b>ወይም ከተጫኑ ማቴሪያሎች / ምዕራፎች ይምረጡ:</b>"
     )
 
     await callback.message.edit_text(
@@ -206,28 +210,6 @@ async def handle_quiz_course_select(callback: CallbackQuery):
         parse_mode=ParseMode.HTML,
         reply_markup=build_topics_keyboard(course_id, materials),
     )
-
-
-@router.callback_query(F.data.startswith("aiq_custom_"))
-async def handle_quiz_custom_prompt(callback: CallbackQuery, state: FSMContext):
-    """Prompts student to type custom chapter / topic name."""
-    course_id = int(callback.data.partition("aiq_custom_")[2])
-    course = await db.get_course_by_id(course_id)
-    if not course:
-        await callback.answer("⚠️ ኮርሱ አልተገኘም!", show_alert=True)
-        return
-
-    await state.update_data(ai_course_id=course_id)
-    await state.set_state(AIQuizStates.waiting_for_custom_topic)
-    await callback.answer()
-
-    text = (
-        f"✍️ <b>{course.name} — የፈለጉትን ርዕስ/ምዕራፍ ይጻፉ:</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "ፈተና እንዲዘጋጅበት የሚፈልጉትን ርዕስ ከታች በጽሁፍ ይላኩ:\n"
-        "<i>(ምሳሌ፡ Chapter 1 Kinematics, or Newton's Laws, or Limits and Continuity)</i>"
-    )
-    await callback.message.edit_text(text, parse_mode=ParseMode.HTML)
 
 
 @router.message(AIQuizStates.waiting_for_custom_topic)
@@ -243,6 +225,15 @@ async def process_custom_topic_text(message: Message, state: FSMContext, bot: Bo
         await message.answer("⚠️ ኮርሱ አልተገኘም። እባክዎ እንደገና ይጀምሩ።")
         return
 
+    await generate_and_start_quiz(
+        target_msg=message,
+        user_id=message.from_user.id,
+        course=course,
+        topic_title=f"{custom_topic}",
+        bot=bot,
+        edit_existing=False
+    )
+
 async def generate_and_start_quiz(
     target_msg: Message | CallbackQuery,
     user_id: int,
@@ -251,7 +242,7 @@ async def generate_and_start_quiz(
     bot: Bot,
     edit_existing: bool = True
 ):
-    """Core function to query Gemini AI and initialize user quiz session."""
+    """Core function to query Gemini AI and initialize user quiz session without demo questions."""
     chat_id = target_msg.message.chat.id if isinstance(target_msg, CallbackQuery) else target_msg.chat.id
 
     if isinstance(target_msg, CallbackQuery):
@@ -286,24 +277,19 @@ async def generate_and_start_quiz(
         except Exception as e:
             logger.error(f"Failed to generate AI quiz questions via Gemini API: {e}")
 
-    # Fallback demo questions if Gemini API key is missing or call failed
+    # No demo questions fallback — inform student if AI generation fails or key is missing
     if not questions:
-        questions = [
-            {
-                "num": 1,
-                "question": f"In {course.name} ({topic_title}), which of the following principles is fundamental?",
-                "options": ["A. Fundamental Principle", "B. Secondary Corollary", "C. Arbitrary Assumption", "D. None of the above"],
-                "correct_index": 0,
-                "explanation": f"በ {course.name} መሰረታዊው መبدአ Fundamental Principle ነው (A)።"
-            },
-            {
-                "num": 2,
-                "question": f"Which approach is standard when analyzing core problems in {course.name}?",
-                "options": ["A. Unstructured Estimation", "B. SI Unit & Dimensional Analysis", "C. Trial and Error", "D. Disregarding units"],
-                "correct_index": 1,
-                "explanation": "በሳይንሳዊ ትንተና መሰረታዊ መለኪያዎችን በመጠቀም SI Unit Analysis መተግበር ያስፈልጋል (B)።"
-            }
-        ]
+        err_msg = (
+            "⚠️ <b>የ AI ፈተና ማመንጨት አልተሳካም።</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "• እባክዎ <code>GEMINI_API_KEY</code> በ <code>.env</code> ፋይል ውስጥ መዘጋጀቱን ያረጋግጡ።\n"
+            "• ወይም አውታረ መረቡን አስተካክለው በድጋሚ ይሞክሩ።"
+        )
+        if isinstance(target_msg, CallbackQuery):
+            await target_msg.message.answer(err_msg, parse_mode=ParseMode.HTML)
+        else:
+            await target_msg.answer(err_msg, parse_mode=ParseMode.HTML)
+        return
 
     user_quiz_sessions[user_id] = {
         "course_id": course.id,
