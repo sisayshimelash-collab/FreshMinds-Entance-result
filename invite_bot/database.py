@@ -770,6 +770,34 @@ class Database:
             await db.commit()
             return cursor.rowcount > 0
 
+    async def get_courses_with_materials(self) -> list[CourseRecord]:
+        """Fetch courses that have uploaded materials in the database (or all courses as fallback)."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT DISTINCT c.id, c.name, c.code, c.icon, c.sort_order
+                FROM courses c
+                JOIN course_materials m ON c.id = m.course_id
+                ORDER BY c.sort_order ASC, c.name ASC
+                """
+            )
+            rows = await cursor.fetchall()
+            if rows:
+                return [
+                    CourseRecord(
+                        id=r["id"],
+                        name=r["name"],
+                        code=r["code"] or "",
+                        icon=r["icon"] or "📚",
+                        sort_order=r["sort_order"],
+                    )
+                    for r in rows
+                ]
+            # Fallback to all courses if no materials uploaded yet
+            return await self.get_all_courses()
+
+
     # ── Course Materials CRUD ────────────────────────────────────────────────
     async def get_materials_by_course(
         self, course_id: int, category: Optional[str] = None

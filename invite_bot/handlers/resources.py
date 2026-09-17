@@ -38,9 +38,10 @@ CATEGORY_NAMES = {
 
 
 def build_courses_keyboard(courses: list) -> InlineKeyboardMarkup:
-    """Builds keyboard grid of all available courses."""
-    keyboard = []
-    # 2 buttons per row for compact clean UI
+    """Builds keyboard grid of all available courses + AI Quiz entry button."""
+    keyboard = [
+        [InlineKeyboardButton(text="🧪 Interactive AI Quiz (በነፃ ፈትን)", callback_data="aiq_menu")]
+    ]
     row = []
     for c in courses:
         row.append(
@@ -55,9 +56,10 @@ def build_courses_keyboard(courses: list) -> InlineKeyboardMarkup:
 
 
 def build_course_categories_keyboard(course_id: int) -> InlineKeyboardMarkup:
-    """Builds category options for a selected course."""
+    """Builds category options for a selected course including AI Quiz option."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text="🧪 ለዚህ ኮርስ AI ፈተና ስራ (Take AI Quiz)", callback_data=f"aiq_course_{course_id}")],
             [InlineKeyboardButton(text=CATEGORY_NAMES["module"], callback_data=f"ccat_{course_id}_module")],
             [InlineKeyboardButton(text=CATEGORY_NAMES["note"], callback_data=f"ccat_{course_id}_note")],
             [InlineKeyboardButton(text=CATEGORY_NAMES["midterm"], callback_data=f"ccat_{course_id}_midterm")],
@@ -66,6 +68,7 @@ def build_course_categories_keyboard(course_id: int) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="🔙 ወደ ኮርሶች ዝርዝር (Back)", callback_data="courses_list_back")],
         ]
     )
+
 
 
 async def show_courses_list(target: Message | CallbackQuery):

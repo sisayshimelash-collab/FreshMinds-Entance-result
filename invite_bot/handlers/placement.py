@@ -323,9 +323,10 @@ async def process_first_name(message: Message, bot: Bot, state: FSMContext):
 
         # Generate custom watermarked image card
         try:
-            from placement_card_generator import generate_placement_card_image
+            from freshminds_card_generator import generate_placement_card_image
             from aiogram.types import FSInputFile
             import tempfile
+
 
             temp_img_path = os.path.join(tempfile.gettempdir(), f"placement_{clean_admission_no}.png")
             generate_placement_card_image(
