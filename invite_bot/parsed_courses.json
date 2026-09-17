@@ -1,0 +1,502 @@
+{
+  "Addis Ababa University (AAU)": {
+    "Social": [
+      "Global Trends",
+      "Anthropology",
+      "Emerging Technologies",
+      "Moral & Ethical Education",
+      "Economics",
+      "Entrepreneurship",
+      "Communicative English Skill One"
+    ],
+    "Natural": [
+      "Physics",
+      "Physical Fitness",
+      "Mathematics for Natural Science",
+      "Communicative English Skill One",
+      "Logic",
+      "Psychology",
+      "Geography",
+      "History"
+    ]
+  },
+  "Adama Science & Technology University (AASTU)": {
+    "Engineering": [
+      "Anthropology",
+      "Math",
+      "Entrepreneurship",
+      "Philosophy (Logic)",
+      "Psychology",
+      "Communicative English Skill One",
+      "Geography",
+      "Applied Maths",
+      "Chemistry",
+      "Python",
+      "Civic"
+    ]
+  },
+  "Arba Minch University (AMU)": {
+    "Social": [
+      "Mathematics for Social Science",
+      "Communicative English Skill One",
+      "Geography",
+      "Economics",
+      "Psychology",
+      "Logic"
+    ],
+    "Natural": [
+      "Communicative English Skill One",
+      "Mathematics for Natural Science",
+      "General Physics",
+      "Critical Thinking",
+      "Psychology",
+      "Geography",
+      "Physical Fitness"
+    ]
+  },
+  "Arsi University": {
+    "Social": [
+      "Logic",
+      "Geography",
+      "Economics",
+      "Mathematics for Social Science",
+      "Communicative English Skill One",
+      "Psychology"
+    ],
+    "Natural": [
+      "Mathematics for Natural Science",
+      "Communicative English Skill One",
+      "Psychology",
+      "Logic",
+      "History",
+      "Geography",
+      "Physical Fitness",
+      "General Physics"
+    ]
+  },
+  "Assosa University": {
+    "Natural": [
+      "Communicative English Skill One",
+      "Economics",
+      "Mathematics for Natural Science",
+      "Emerging Technology",
+      "Logic & Critical Thinking",
+      "Physics"
+    ]
+  },
+  "Bahir Dar University (BDU)": {
+    "Social": [
+      "Anthropology",
+      "Entrepreneurship",
+      "Emerging Technologies",
+      "Communicative English Skill One",
+      "Economics",
+      "Global Trends",
+      "History"
+    ],
+    "Natural": [
+      "Mathematics for Natural Science",
+      "General Physics",
+      "Psychology",
+      "Civics/Moral Education",
+      "Communicative English Skill One",
+      "Logic",
+      "Geography",
+      "Physical Fitness"
+    ]
+  },
+  "Bonga University": {
+    "Social": [
+      "Logic",
+      "Anthropology",
+      "Geography",
+      "Economics",
+      "Mathematics for Social Science",
+      "Communicative English Skill One"
+    ]
+  },
+  "Borana University": {
+    "Natural": [
+      "Physics",
+      "Geography",
+      "Logic",
+      "Communicative English Skill One",
+      "Mathematics for Natural Science",
+      "Psychology",
+      "Physical Fitness"
+    ]
+  },
+  "Debre Berhan University": {
+    "Social": [
+      "Communicative English Skill One",
+      "Economics",
+      "Emerging Technology",
+      "Logic",
+      "Psychology",
+      "Physical Education",
+      "History"
+    ],
+    "Natural": [
+      "Communicative English Skill One",
+      "Mathematics for Natural Science",
+      "General Physics",
+      "Psychology",
+      "Social Anthropology",
+      "Logic",
+      "Geography"
+    ]
+  },
+  "Debre Markos University": {
+    "Social": [
+      "Communicative English Skill One",
+      "Logic",
+      "Global Trends",
+      "History",
+      "Geography",
+      "Economics",
+      "Inclusiveness"
+    ],
+    "Natural": [
+      "Physics",
+      "Anthropology",
+      "Psychology",
+      "Civics",
+      "Emerging Technology",
+      "Mathematics for Natural Science",
+      "Communicative English Skill One"
+    ]
+  },
+  "Debre Tabor University (DTU)": {
+    "Social": [
+      "Anthropology",
+      "Mathematics for Social Science",
+      "Geography",
+      "History",
+      "Logic",
+      "Communicative English Skill One",
+      "Economics"
+    ],
+    "Natural": [
+      "Communicative English Skill One",
+      "Mathematics for Natural Science",
+      "Physics",
+      "Logic",
+      "Psychology",
+      "Geography",
+      "Inclusiveness"
+    ]
+  },
+  "Dilla University (Green Land)": {
+    "Natural": [
+      "Communicative English Skill One",
+      "Mathematics for Natural Science",
+      "General Physics",
+      "General Psychology",
+      "Logic",
+      "Geography"
+    ]
+  },
+  "Dire Dawa University": {
+    "Natural": [
+      "Communicative English Skill One",
+      "Mathematics for Natural Science",
+      "General Physics",
+      "General Psychology",
+      "Logic",
+      "Geography"
+    ]
+  },
+  "Ethiopian Civil Service University (ECSU)": {
+    "Social": [
+      "Communicative English Skill One",
+      "Mathematics for Social Science",
+      "Logic",
+      "Anthropology",
+      "Geography",
+      "Economics",
+      "History"
+    ]
+  },
+  "Gondar University": {
+    "Social": [
+      "Communicative English Skill One",
+      "Economics",
+      "History",
+      "Logic & Critical Thinking",
+      "General Psychology",
+      "Inclusiveness",
+      "Entrepreneurship"
+    ],
+    "Natural": [
+      "Anthropology",
+      "Emerging Technology",
+      "Mathematics for Natural Science",
+      "General Physics",
+      "Global Trends",
+      "Moral & Civic Education",
+      "Geography",
+      "Communicative English Skill One"
+    ]
+  },
+  "Haramaya University": {
+    "Natural": [
+      "Mathematics for Natural Science",
+      "Physics",
+      "Logic",
+      "Psychology",
+      "Geography",
+      "Communicative English Skill One"
+    ]
+  },
+  "Hawassa University": {
+    "Social": [
+      "Economics",
+      "Emerging Technology",
+      "Psychology",
+      "Logic",
+      "Geography",
+      "Communicative English Skill One"
+    ],
+    "Natural": [
+      "General Physics",
+      "Mathematics for Natural Science",
+      "Logic",
+      "Social Anthropology",
+      "Emerging Technology",
+      "Communicative English Skill One",
+      "Physical Fitness"
+    ]
+  },
+  "Injibara University": {
+    "Natural": [
+      "Mathematics for Natural Science",
+      "Communicative English Skill One",
+      "General Physics",
+      "General Psychology",
+      "Logic",
+      "Geography",
+      "Sport"
+    ]
+  },
+  "Jigjiga University": {
+    "Social": [
+      "Geography",
+      "Economics",
+      "Logic",
+      "Psychology",
+      "Communicative English Skill One",
+      "Mathematics for Social Science",
+      "Physical Fitness"
+    ]
+  },
+  "Jimma University": {
+    "Social": [
+      "Logic",
+      "Psychology",
+      "Communicative English Skill One",
+      "Mathematics for Social Science",
+      "Economics",
+      "Geography",
+      "Physical Fitness"
+    ],
+    "Natural": [
+      "Logic",
+      "Psychology",
+      "Communicative English Skill One",
+      "Mathematics for Natural Science",
+      "General Physics",
+      "Geography",
+      "Sport/Physical Fitness"
+    ]
+  },
+  "Madda Walabu University": {
+    "Social": [
+      "Mathematics for Social Science",
+      "Psychology",
+      "Logic",
+      "Geography",
+      "Communicative English Skill One",
+      "Economics",
+      "HPE"
+    ],
+    "Natural": [
+      "Mathematics for Natural Science",
+      "General Physics",
+      "Psychology",
+      "Logic",
+      "Geography",
+      "Communicative English Skill One",
+      "HPE"
+    ]
+  },
+  "Mekelle University": {
+    "Social": [
+      "Emerging Technology",
+      "History",
+      "Economics",
+      "Psychology",
+      "Entrepreneurship",
+      "Communicative English Skill One",
+      "Physical Education"
+    ],
+    "Natural": [
+      "Mathematics for Natural Science",
+      "Physics",
+      "Logic",
+      "Geography"
+    ]
+  },
+  "Mizan-Tepi University": {
+    "Natural": [
+      "Mathematics for Natural Science",
+      "Physics",
+      "Communicative English Skill One",
+      "Psychology",
+      "Logic",
+      "Geography",
+      "Physical Fitness"
+    ]
+  },
+  "Raya University": {
+    "Natural": [
+      "Communicative English Skill One",
+      "Mathematics for Natural Science",
+      "General Physics",
+      "General Psychology",
+      "Logic",
+      "Geography"
+    ]
+  },
+  "Wachemo University": {
+    "Social": [
+      "Logic",
+      "Mathematics for Social Science",
+      "Communicative English Skill One",
+      "Psychology",
+      "Geography",
+      "Economics",
+      "Physical Exercise"
+    ],
+    "Natural": [
+      "Communicative English Skill One",
+      "Mathematics for Natural Science",
+      "General Physics",
+      "Psychology",
+      "Critical Thinking",
+      "Geography",
+      "Physical Fitness"
+    ]
+  },
+  "Werabe University": {
+    "Natural": [
+      "Psychology",
+      "Anthropology",
+      "Global Trends",
+      "Communicative English Skill One",
+      "Mathematics for Natural Science",
+      "Physics",
+      "Logic",
+      "Emerging Technology",
+      "HPE"
+    ]
+  },
+  "Wolaita Sodo University": {
+    "Social": [
+      "Logic",
+      "Psychology",
+      "Economics",
+      "Mathematics for Social Science",
+      "Geography",
+      "Communicative English Skill One"
+    ],
+    "Natural": [
+      "Mathematics for Natural Science",
+      "Communicative English Skill One",
+      "General Physics",
+      "Logic",
+      "Psychology",
+      "History",
+      "Geography"
+    ]
+  },
+  "Woldia University": {
+    "Social": [
+      "Anthropology",
+      "Psychology",
+      "Global Trends",
+      "Moral & Civic Education",
+      "Entrepreneurship",
+      "Communicative English Skill One",
+      "History",
+      "Economics"
+    ],
+    "Natural": [
+      "Communicative English Skill One",
+      "Mathematics for Natural Science",
+      "General Physics",
+      "Emerging Technology",
+      "Moral & Civic Education",
+      "Geography",
+      "Physical Fitness"
+    ]
+  },
+  "Wollega University": {
+    "Social": [
+      "Mathematics for Social Science",
+      "Communicative English Skill One",
+      "Psychology",
+      "Logic",
+      "Economics",
+      "Geography",
+      "Physical Fitness"
+    ],
+    "Natural": [
+      "Mathematics for Natural Science",
+      "Physics",
+      "Communicative English Skill One",
+      "Psychology",
+      "Logic",
+      "Geography"
+    ]
+  },
+  "Wolkite University": {
+    "Social": [
+      "Anthropology",
+      "Psychology",
+      "Entrepreneurship",
+      "Logic",
+      "Mathematics for Social Science",
+      "Communicative English Skill One",
+      "Economics"
+    ],
+    "Natural": [
+      "Communicative English Skill One",
+      "Mathematics for Natural Science",
+      "General Physics",
+      "General Psychology",
+      "Logic",
+      "Geography",
+      "Physical Fitness"
+    ]
+  },
+  "Wollo University": {
+    "Social": [
+      "Communicative English Skill One",
+      "Psychology",
+      "Logic",
+      "Economics",
+      "Mathematics for Social Science",
+      "Entrepreneurship",
+      "Physical Fitness"
+    ],
+    "Natural": [
+      "Communicative English Skill One",
+      "Physics",
+      "Psychology",
+      "Logic",
+      "Geography",
+      "Mathematics for Natural Science",
+      "Physical Fitness"
+    ]
+  }
+}

@@ -45,20 +45,25 @@ async def build_placement_result_keyboard(university_name: str) -> InlineKeyboar
     """Builds inline action buttons for the placement result card."""
     buttons = []
 
-    # 1. Cross-link: Check if assigned university exists in bot's directory
-    uni_record = await db.find_university_by_name(university_name)
-    if uni_record:
-        buttons.append([
-            InlineKeyboardButton(
-                text=f"🏛️ ስለ {uni_record.name} መረጃ እይ",
-                callback_data=f"uni_view_{uni_record.id}",
-            )
-        ])
+    # 1. Cross-link: Check if assigned university exists in university courses guide
+    from university_courses_data import find_university_courses, get_all_university_names
+    res = find_university_courses(university_name)
+    if res:
+        official_name, _ = res
+        uni_names = get_all_university_names()
+        if official_name in uni_names:
+            idx = uni_names.index(official_name)
+            buttons.append([
+                InlineKeyboardButton(
+                    text=f"🏛️ የ {official_name} 1ኛ ሴሚስተር ኮርሶች እይ",
+                    callback_data=f"unicourse_idx_{idx}",
+                )
+            ])
 
     # 2. Direct access to freshman materials
     buttons.append([
         InlineKeyboardButton(
-            text="📚 የ 1st Year ኮርሶችና ሞጁሎች (Courses)",
+            text="📚 የ 1st Year ኮርሶችና ሞጁሎች (Materials)",
             callback_data="placement_view_courses",
         )
     ])
@@ -72,6 +77,7 @@ async def build_placement_result_keyboard(university_name: str) -> InlineKeyboar
     ])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
 
 
 @router.message(F.text == msg.BTN_PLACEMENT)

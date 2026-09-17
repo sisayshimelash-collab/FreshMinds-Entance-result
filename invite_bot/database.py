@@ -187,12 +187,25 @@ class Database:
                 );
             """)
 
+            # 9. Custom University Courses Table (Admin added/edited university course lists)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS custom_university_courses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    university_name TEXT NOT NULL,
+                    stream_name TEXT NOT NULL,
+                    courses_json TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(university_name, stream_name)
+                );
+            """)
+
             # Ensure default setting for placement_enabled exists (default 1 = enabled)
             cursor = await db.execute("SELECT value FROM app_settings WHERE key = 'placement_enabled'")
             if not await cursor.fetchone():
                 await db.execute(
                     "INSERT INTO app_settings (key, value) VALUES ('placement_enabled', '1')"
                 )
+
 
             # Indexes for fast lookup queries
             await db.execute(
@@ -1067,6 +1080,64 @@ class Database:
     async def set_placement_enabled(self, enabled: bool):
         """Enable (1) or disable (0) placement feature."""
         await self.set_setting("placement_enabled", "1" if enabled else "0")
+
+    # ── Custom University Courses CRUD ─────────────────────────────────────────
+
+    async def get_all_custom_university_courses(self) -> dict[str, dict[str, list[str]]]:
+        """Fetch all admin added/edited university courses from database."""
+        import json
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                "SELECT university_name, stream_name, courses_json FROM custom_university_courses"
+            )
+            rows = await cursor.fetchall()
+            result: dict[str, dict[str, list[str]]] = {}
+            for r in rows:
+                uni = r["university_name"]
+                stream = r["stream_name"]
+                try:
+                    courses = json.loads(r["courses_json"])
+                except Exception:
+                    courses = []
+                if uni not in result:
+                    result[uni] = {}
+                result[uni][stream] = courses
+            return result
+
+    async def save_custom_university_stream_courses(
+        self, university_name: str, stream_name: str, courses: list[str]
+    ):
+        """Save or update custom courses for a specific university & stream."""
+        import json
+        clean_uni = university_name.strip()
+        clean_stream = stream_name.strip()
+        json_str = json.dumps(courses, ensure_ascii=False)
+
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO custom_university_courses (university_name, stream_name, courses_json)
+                VALUES (?, ?, ?)
+                ON CONFLICT(university_name, stream_name) DO UPDATE SET
+                    courses_json = excluded.courses_json,
+                    created_at = CURRENT_TIMESTAMP
+                """,
+                (clean_uni, clean_stream, json_str),
+            )
+            await db.commit()
+
+    async def delete_custom_university_courses(self, university_name: str) -> bool:
+        """Delete all custom course entries for a university."""
+        clean_uni = university_name.strip()
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "DELETE FROM custom_university_courses WHERE university_name = ?",
+                (clean_uni,),
+            )
+            await db.commit()
+            return cursor.rowcount > 0
+
 
 
 

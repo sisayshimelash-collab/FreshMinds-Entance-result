@@ -29,8 +29,19 @@ class AdminUniEditState(StatesGroup):
     waiting_for_new_about = State()
 
 
+class AdminAddUniversityState(StatesGroup):
+    waiting_for_uni_name = State()
+    waiting_for_natural_courses = State()
+    waiting_for_social_courses = State()
+
+
+class AdminEditUniversityCourseState(StatesGroup):
+    waiting_for_new_courses = State()
+
+
 class AdminCourseState(StatesGroup):
     waiting_for_name = State()
+
 
 
 class AdminMaterialState(StatesGroup):
@@ -312,6 +323,369 @@ async def cmd_toggle_placement(message: Message):
         f"⚙️ <b>የዩኒቨርሲቲ ምደባ አገልግሎት ሁኔታ ተቀይሯል:</b>\n\n{status_text}",
         parse_mode=ParseMode.HTML,
     )
+
+
+# ── University CMS (Add / Edit / Delete Universities & 1st Sem Courses) ───────
+
+@router.callback_query(F.data == "admin_unis_menu")
+async def cb_admin_unis_menu(callback: CallbackQuery, state: FSMContext):
+    """Displays University & Course Management Submenu."""
+    if not is_admin(callback.from_user.id):
+        return
+    await state.clear()
+    await callback.answer()
+
+    from university_courses_data import get_all_university_names
+    total_unis = len(get_all_university_names())
+
+    text = (
+        "🏛️ <b>FreshMinds — University & 1st Sem Courses CMS</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"📍 Registered Universities: <b>{total_unis}</b>\n\n"
+        "Select an action to manage university 1st semester courses:"
+    )
+    markup = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="➕ Add New University", callback_data="admin_add_uni_start"),
+            ],
+            [
+                InlineKeyboardButton(text="✏️ Edit University Courses", callback_data="admin_edit_uni_list"),
+            ],
+            [
+                InlineKeyboardButton(text="🗑️ Delete University", callback_data="admin_del_uni_list"),
+            ],
+            [
+                InlineKeyboardButton(text="🔙 Main Admin Menu", callback_data="admin_main_menu"),
+            ],
+        ]
+    )
+    if isinstance(callback.message, Message):
+        await callback.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=markup)
+
+
+@router.callback_query(F.data == "admin_main_menu")
+async def cb_admin_main_menu(callback: CallbackQuery, state: FSMContext):
+    """Returns to main admin control center menu."""
+    if not is_admin(callback.from_user.id):
+        return
+    await state.clear()
+    await callback.answer()
+    placement_enabled = await db.is_placement_enabled()
+    text = (
+        "👑 <b>FreshMinds Invite Bot — Admin Control Center</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Select an action or use direct commands:"
+    )
+    if isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            text, parse_mode=ParseMode.HTML, reply_markup=get_admin_menu_markup(placement_enabled)
+        )
+
+
+# ── Add New University Flow ───────────────────────────────────────────────────
+
+@router.callback_query(F.data == "admin_add_uni_start")
+async def cb_admin_add_uni_start(callback: CallbackQuery, state: FSMContext):
+    """Starts wizard to add a new university."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    await state.set_state(AdminAddUniversityState.waiting_for_uni_name)
+    cancel_markup = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel", callback_data="admin_unis_menu")]]
+    )
+    if isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            "➕ <b>Add New University (Step 1/3)</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "Please send the <b>University Name</b> (e.g. <code>Ambo University (AU)</code>):",
+            parse_mode=ParseMode.HTML,
+            reply_markup=cancel_markup,
+        )
+
+
+@router.message(AdminAddUniversityState.waiting_for_uni_name)
+async def process_add_uni_name(message: Message, state: FSMContext):
+    """Processes university name input."""
+    if not is_admin(message.from_user.id):
+        return
+    uni_name = (message.text or "").strip()
+    if len(uni_name) < 3:
+        await message.answer("⚠️ University name too short. Please enter a valid name:")
+        return
+
+    await state.update_data(uni_name=uni_name)
+    await state.set_state(AdminAddUniversityState.waiting_for_natural_courses)
+    cancel_markup = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel", callback_data="admin_unis_menu")]]
+    )
+    await message.answer(
+        f"➕ <b>{html.escape(uni_name)} — Step 2/3 (Natural Science Courses)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Send comma-separated list of 1st semester <b>Natural Science</b> courses:\n"
+        "<i>Example: Mathematics for Natural Science, General Physics, Logic, English, Psychology</i>\n\n"
+        "Or type <code>none</code> to skip Natural Science.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=cancel_markup,
+    )
+
+
+@router.message(AdminAddUniversityState.waiting_for_natural_courses)
+async def process_add_uni_natural(message: Message, state: FSMContext):
+    """Processes natural science course list."""
+    if not is_admin(message.from_user.id):
+        return
+    text = (message.text or "").strip()
+    natural_courses = [c.strip() for c in text.split(",") if c.strip()] if text.lower() != "none" else []
+
+    await state.update_data(natural_courses=natural_courses)
+    await state.set_state(AdminAddUniversityState.waiting_for_social_courses)
+    data = await state.get_data()
+    uni_name = data.get("uni_name", "")
+
+    cancel_markup = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel", callback_data="admin_unis_menu")]]
+    )
+    await message.answer(
+        f"➕ <b>{html.escape(uni_name)} — Step 3/3 (Social Science Courses)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Send comma-separated list of 1st semester <b>Social Science</b> courses:\n"
+        "<i>Example: Economics, Geography, Logic, English, Mathematics for Social Science</i>\n\n"
+        "Or type <code>none</code> to skip Social Science.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=cancel_markup,
+    )
+
+
+@router.message(AdminAddUniversityState.waiting_for_social_courses)
+async def process_add_uni_social(message: Message, state: FSMContext):
+    """Saves custom university & course breakdown."""
+    if not is_admin(message.from_user.id):
+        return
+    text = (message.text or "").strip()
+    social_courses = [c.strip() for c in text.split(",") if c.strip()] if text.lower() != "none" else []
+
+    data = await state.get_data()
+    uni_name = data.get("uni_name", "")
+    natural_courses = data.get("natural_courses", [])
+    await state.clear()
+
+    from university_courses_data import register_custom_university_course
+
+    if natural_courses:
+        await db.save_custom_university_stream_courses(uni_name, "Natural", natural_courses)
+        register_custom_university_course(uni_name, "Natural", natural_courses)
+
+    if social_courses:
+        await db.save_custom_university_stream_courses(uni_name, "Social", social_courses)
+        register_custom_university_course(uni_name, "Social", social_courses)
+
+    # Preview card
+    preview_streams = {}
+    if natural_courses:
+        preview_streams["Natural"] = natural_courses
+    if social_courses:
+        preview_streams["Social"] = social_courses
+
+    card_text = msg.format_university_courses_card(uni_name, preview_streams)
+    await message.answer(
+        f"🎉 <b>Successfully added new university: {html.escape(uni_name)}!</b>\n\n"
+        f"<b>Student View Preview:</b>\n\n{card_text}",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="🏛️ Return to Uni CMS", callback_data="admin_unis_menu")]]
+        ),
+    )
+
+
+# ── Edit University Courses Flow ──────────────────────────────────────────────
+
+@router.callback_query(F.data == "admin_edit_uni_list")
+async def cb_admin_edit_uni_list(callback: CallbackQuery):
+    """Displays university selection grid to edit courses."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+
+    from university_courses_data import get_all_university_names
+    uni_names = get_all_university_names()
+
+    keyboard = []
+    row = []
+    for idx, name in enumerate(uni_names):
+        short_name = name.replace("University", "Uni").replace("Science & Technology", "Sci-Tech")
+        row.append(InlineKeyboardButton(text=f"✏️ {short_name}", callback_data=f"admin_edit_sel_{idx}"))
+        if len(row) == 2:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+    keyboard.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_unis_menu")])
+
+    if isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            "✏️ <b>Select a University to Edit Courses:</b>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+        )
+
+
+@router.callback_query(F.data.startswith("admin_edit_sel_"))
+async def cb_admin_edit_sel(callback: CallbackQuery):
+    """Displays stream choices to edit for selected university index."""
+    if not is_admin(callback.from_user.id):
+        return
+    idx = int(callback.data.partition("admin_edit_sel_")[2])
+    from university_courses_data import get_all_university_names, find_university_courses
+    uni_names = get_all_university_names()
+
+    if idx < 0 or idx >= len(uni_names):
+        await callback.answer("⚠️ University not found!", show_alert=True)
+        return
+
+    uni_name = uni_names[idx]
+    res = find_university_courses(uni_name)
+    streams = res[1] if res else {}
+
+    keyboard = []
+    for st in streams.keys():
+        keyboard.append([
+            InlineKeyboardButton(text=f"✏️ Edit {st} Stream", callback_data=f"admin_edit_str_{idx}_{st}")
+        ])
+    keyboard.append([InlineKeyboardButton(text="➕ Add New Stream (e.g. Natural/Social)", callback_data=f"admin_edit_str_{idx}_new")])
+    keyboard.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_edit_uni_list")])
+
+    if isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            f"✏️ <b>Editing {html.escape(uni_name)}</b>\nSelect stream to edit:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+        )
+
+
+@router.callback_query(F.data.startswith("admin_edit_str_"))
+async def cb_admin_edit_stream(callback: CallbackQuery, state: FSMContext):
+    """Prompts admin for new course list for university & stream."""
+    if not is_admin(callback.from_user.id):
+        return
+    parts = callback.data.split("_", 4)
+    idx = int(parts[3])
+    stream = parts[4]
+
+    from university_courses_data import get_all_university_names, find_university_courses
+    uni_names = get_all_university_names()
+    uni_name = uni_names[idx]
+
+    res = find_university_courses(uni_name)
+    current_courses = (res[1].get(stream, []) if res else []) if stream != "new" else []
+    current_str = ", ".join(current_courses) if current_courses else "None"
+
+    await state.update_data(edit_uni_name=uni_name, edit_stream_name=stream)
+    await state.set_state(AdminEditUniversityCourseState.waiting_for_new_courses)
+
+    cancel_markup = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel", callback_data="admin_edit_uni_list")]]
+    )
+
+    if isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            f"✏️ <b>Editing {html.escape(uni_name)} — {html.escape(stream)} Stream</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"Current courses: <code>{html.escape(current_str)}</code>\n\n"
+            "Please send the <b>new comma-separated list of courses</b>:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=cancel_markup,
+        )
+
+
+@router.message(AdminEditUniversityCourseState.waiting_for_new_courses)
+async def process_edit_uni_courses(message: Message, state: FSMContext):
+    """Saves edited courses for university stream."""
+    if not is_admin(message.from_user.id):
+        return
+    text = (message.text or "").strip()
+    new_courses = [c.strip() for c in text.split(",") if c.strip()]
+
+    data = await state.get_data()
+    uni_name = data.get("edit_uni_name", "")
+    stream_name = data.get("edit_stream_name", "Natural")
+    if stream_name == "new":
+        stream_name = "Natural"
+    await state.clear()
+
+    from university_courses_data import register_custom_university_course, find_university_courses
+
+    await db.save_custom_university_stream_courses(uni_name, stream_name, new_courses)
+    register_custom_university_course(uni_name, stream_name, new_courses)
+
+    res = find_university_courses(uni_name)
+    preview_streams = res[1] if res else {stream_name: new_courses}
+
+    card_text = msg.format_university_courses_card(uni_name, preview_streams)
+    await message.answer(
+        f"✅ <b>Successfully updated {html.escape(uni_name)} ({html.escape(stream_name)} Stream)!</b>\n\n"
+        f"<b>Updated Preview:</b>\n\n{card_text}",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="🏛️ Return to Uni CMS", callback_data="admin_unis_menu")]]
+        ),
+    )
+
+
+# ── Delete University Flow ───────────────────────────────────────────────────
+
+@router.callback_query(F.data == "admin_del_uni_list")
+async def cb_admin_del_uni_list(callback: CallbackQuery):
+    """Displays university grid to delete."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+
+    from university_courses_data import get_all_university_names
+    uni_names = get_all_university_names()
+
+    keyboard = []
+    row = []
+    for idx, name in enumerate(uni_names):
+        short_name = name.replace("University", "Uni").replace("Science & Technology", "Sci-Tech")
+        row.append(InlineKeyboardButton(text=f"🗑️ {short_name}", callback_data=f"admin_del_sel_{idx}"))
+        if len(row) == 2:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+    keyboard.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_unis_menu")])
+
+    if isinstance(callback.message, Message):
+        await callback.message.edit_text(
+            "🗑️ <b>Select a University to Delete:</b>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+        )
+
+
+@router.callback_query(F.data.startswith("admin_del_sel_"))
+async def cb_admin_del_sel(callback: CallbackQuery):
+    """Deletes custom university entry."""
+    if not is_admin(callback.from_user.id):
+        return
+    idx = int(callback.data.partition("admin_del_sel_")[2])
+    from university_courses_data import get_all_university_names, remove_custom_university
+
+    uni_names = get_all_university_names()
+    if idx < 0 or idx >= len(uni_names):
+        await callback.answer("⚠️ University not found!", show_alert=True)
+        return
+
+    uni_name = uni_names[idx]
+    await db.delete_custom_university_courses(uni_name)
+    remove_custom_university(uni_name)
+
+    await callback.answer(f"🗑️ Deleted {uni_name}", show_alert=True)
+    if isinstance(callback.message, Message):
+        await cb_admin_del_uni_list(callback)
+
 
 
 

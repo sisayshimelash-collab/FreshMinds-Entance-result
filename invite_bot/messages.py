@@ -367,8 +367,40 @@ def format_placement_card(
         f"{school_info}"
         f"{region_info}"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "✨ <i>እንኳን ደስ አላችሁ! ለካምፓስ ህይወትዎ እና ለ 1st Year ውጤታማነትዎ ከጎንዎ ነን!</i>"
+        f"✨ <i>እንኳን ደስ አላችሁ! ለካምፓስ ህይወትዎ እና ለ 1st Year ውጤታማነትዎ ከጎንዎ ነን!</i>"
     )
+
+
+def format_university_courses_card(
+    university_name: str,
+    streams_dict: dict[str, list[str]],
+) -> str:
+    """Formats university 1st semester course guide card with promotional CTA billboard."""
+    streams_text = ""
+    stream_icons = {
+        "Natural": "🔬",
+        "Social": "📖",
+        "Engineering": "⚙️",
+    }
+
+    for stream_name, courses in streams_dict.items():
+        icon = stream_icons.get(stream_name, "📚")
+        streams_text += f"\n{icon} <b>{stream_name} Stream (1st Semester):</b>\n"
+        for c in courses:
+            streams_text += f"  • {html.escape(c)}\n"
+
+    return (
+        f"🏛️ <b>{html.escape(university_name)}</b>\n"
+        f"🎓 <b>የ 1ኛ ዓመት 1ኛ ሴሚስተር ኮርሶች ዝርዝር</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━"
+        f"{streams_text}\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔥 <b>FreshMinds Academy — የ 1st Year ስኬት አጋርዎ!</b>\n\n"
+        f"📱 <b>በቅርብ ቀን የሚለቀቀው የ FreshMinds Mobile App:</b>\n"
+        f"• የ 1ኛ ዓመት ኮርሶች የቪዲዮ ማብራሪያዎች፣ ሞጁሎች እና ያለፉ የፈተና ጥያቄዎች በሙሉ <b>Offline (ያለ ኢንተርኔት)</b> የሚሰሩበት አፕሊኬሽን በቅርብ ቀን ይለቀቃል!\n\n"
+        f"📢 <b>ማቴሪያሎችን፣ ኖቶችን እና የቪዲዮ ትምህርቶችን ለማግኘት ይፋዊ ቻናላችንን ይቀላቀሉ:</b>"
+    )
+
 
 
 
