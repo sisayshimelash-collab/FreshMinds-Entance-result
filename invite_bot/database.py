@@ -1109,6 +1109,43 @@ class Database:
         """Enable (1) or disable (0) placement feature."""
         await self.set_setting("placement_enabled", "1" if enabled else "0")
 
+    async def is_ai_quiz_enabled(self) -> bool:
+        """Check if AI quiz feature is enabled (default 1 = enabled)."""
+        val = await self.get_setting("ai_quiz_enabled", default="1")
+        return str(val).strip() == "1"
+
+    async def set_ai_quiz_enabled(self, enabled: bool):
+        """Enable (1) or disable (0) AI quiz feature."""
+        await self.set_setting("ai_quiz_enabled", "1" if enabled else "0")
+
+    async def is_uni_courses_enabled(self) -> bool:
+        """Check if 1st semester course guide feature is enabled (default 1 = enabled)."""
+        val = await self.get_setting("uni_courses_enabled", default="1")
+        return str(val).strip() == "1"
+
+    async def set_uni_courses_enabled(self, enabled: bool):
+        """Enable (1) or disable (0) 1st semester course guide feature."""
+        await self.set_setting("uni_courses_enabled", "1" if enabled else "0")
+
+    async def is_universities_enabled(self) -> bool:
+        """Check if universities info feature is enabled (default 1 = enabled)."""
+        val = await self.get_setting("universities_enabled", default="1")
+        return str(val).strip() == "1"
+
+    async def set_universities_enabled(self, enabled: bool):
+        """Enable (1) or disable (0) universities info feature."""
+        await self.set_setting("universities_enabled", "1" if enabled else "0")
+
+    async def is_gpa_calc_enabled(self) -> bool:
+        """Check if GPA calculator feature is enabled (default 1 = enabled)."""
+        val = await self.get_setting("gpa_calc_enabled", default="1")
+        return str(val).strip() == "1"
+
+    async def set_gpa_calc_enabled(self, enabled: bool):
+        """Enable (1) or disable (0) GPA calculator feature."""
+        await self.set_setting("gpa_calc_enabled", "1" if enabled else "0")
+
+
     # ── Custom University Courses CRUD ─────────────────────────────────────────
 
     async def get_all_custom_university_courses(self) -> dict[str, dict[str, list[str]]]:

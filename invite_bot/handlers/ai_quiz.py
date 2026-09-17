@@ -135,7 +135,15 @@ async def show_quiz_courses_menu(target: Message | CallbackQuery):
 @router.message(Command("aiquiz"))
 @router.message(F.text == "🧪 Quiz Yourself (በነፃ ፈትን)")
 async def handle_quiz_cmd(message: Message, bot: Bot):
-    """Entry point for Interactive AI Quiz — gated behind channel membership."""
+    """Entry point for Interactive AI Quiz — gated behind channel membership and admin toggle."""
+    if not await db.is_ai_quiz_enabled():
+        await message.answer(
+            "ℹ️ <b>የ AI ፈተና አገልግሎት በጊዜያዊነት በአድሚን ተዘግቷል!</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "አገልግሎቱ ለጥገና ወይም ማሻሻያ በጊዜያዊነት የተዘጋ ሲሆን በቅርቡ የሚከፈት ይሆናል።",
+            parse_mode=ParseMode.HTML,
+        )
+        return
     if not await check_and_credit_membership(bot, message.from_user):
         await send_feature_lock_message(message, "🧪 የተفاعላዊ ፈተና አገልግሎትን", "retry_feature_quiz")
         return
@@ -146,6 +154,9 @@ async def handle_quiz_cmd(message: Message, bot: Bot):
 @router.callback_query(F.data == "aiq_menu")
 async def handle_quiz_menu_callback(callback: CallbackQuery, bot: Bot):
     """Callback entry point for AI Quiz Menu."""
+    if not await db.is_ai_quiz_enabled():
+        await callback.answer("⚠️ የ AI ፈተና አገልግሎት በጊዜያዊነት በአድሚን ተዘግቷል!", show_alert=True)
+        return
     if not await check_and_credit_membership(bot, callback.from_user):
         await callback.answer("⚠️ እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ!", show_alert=True)
         return

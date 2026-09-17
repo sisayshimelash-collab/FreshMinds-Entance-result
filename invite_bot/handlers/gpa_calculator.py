@@ -145,13 +145,24 @@ async def show_gpa_table(target: Message | CallbackQuery, user_id: int):
         )
 
 
+from database import db
+
 @router.message(F.text == msg.BTN_GPA_CALC)
 @router.message(Command("gpa"))
 @router.message(Command("calculator"))
 async def handle_gpa_calculator(message: Message, bot: Bot):
-    """Entry point for the interactive GPA Calculator — gated behind channel membership."""
+    """Entry point for the interactive GPA Calculator — gated behind channel membership and admin toggle."""
     user = message.from_user
     if not user:
+        return
+
+    if not await db.is_gpa_calc_enabled():
+        await message.answer(
+            "ℹ️ <b>የ GPA ማስያ አገልግሎት በጊዜያዊነት በአድሚን ተዘግቷል!</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "አገልግሎቱ በጊዜያዊነት የተዘጋ ሲሆን በቅርቡ የሚከፈት ይሆናል።",
+            parse_mode=ParseMode.HTML,
+        )
         return
 
     if not await check_and_credit_membership(bot, user):
@@ -164,6 +175,9 @@ async def handle_gpa_calculator(message: Message, bot: Bot):
 @router.callback_query(F.data == "retry_feature_gpa")
 async def handle_retry_gpa(callback: CallbackQuery, bot: Bot):
     """Retry handler for GPA calculator after user joins channel."""
+    if not await db.is_gpa_calc_enabled():
+        await callback.answer("⚠️ የ GPA ማስያ አገልግሎት በጊዜያዊነት በአድሚን ተዘግቷል!", show_alert=True)
+        return
     if not await check_and_credit_membership(bot, callback.from_user):
         await callback.answer("⚠️ እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ!", show_alert=True)
         return

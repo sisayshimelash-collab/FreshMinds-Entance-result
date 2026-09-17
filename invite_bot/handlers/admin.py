@@ -80,17 +80,32 @@ def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
 
-def get_admin_menu_markup(placement_enabled: bool = False) -> InlineKeyboardMarkup:
-    """Interactive Admin Panel Keyboard with Placement Feature Toggle."""
-    status_icon = "🟢 ON (Visible)" if placement_enabled else "🔴 OFF (Hidden)"
-    toggle_text = f"🎓 Placement: {status_icon} (Toggle)"
+async def get_admin_menu_markup() -> InlineKeyboardMarkup:
+    """Interactive Admin Panel Keyboard with All Feature Toggles."""
+    p_on = await db.is_placement_enabled()
+    ai_on = await db.is_ai_quiz_enabled()
+    uc_on = await db.is_uni_courses_enabled()
+    u_on = await db.is_universities_enabled()
+    gpa_on = await db.is_gpa_calc_enabled()
+
+    p_str = "🎓 Placement: 🟢 ON" if p_on else "🎓 Placement: 🔴 OFF"
+    ai_str = "🧪 AI Quiz: 🟢 ON" if ai_on else "🧪 AI Quiz: 🔴 OFF"
+    uc_str = "📖 1st Sem Guide: 🟢 ON" if uc_on else "📖 1st Sem Guide: 🔴 OFF"
+    u_str = "🏛️ Uni Info: 🟢 ON" if u_on else "🏛️ Uni Info: 🔴 OFF"
+    gpa_str = "𝚺 GPA Calc: 🟢 ON" if gpa_on else "𝚺 GPA Calc: 🔴 OFF"
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(
-                    text=toggle_text, callback_data="admin_toggle_placement"
-                )
+                InlineKeyboardButton(text=p_str, callback_data="admin_toggle_placement"),
+                InlineKeyboardButton(text=ai_str, callback_data="admin_toggle_ai_quiz"),
+            ],
+            [
+                InlineKeyboardButton(text=uc_str, callback_data="admin_toggle_uni_courses"),
+                InlineKeyboardButton(text=u_str, callback_data="admin_toggle_universities"),
+            ],
+            [
+                InlineKeyboardButton(text=gpa_str, callback_data="admin_toggle_gpa_calc"),
             ],
             [
                 InlineKeyboardButton(
@@ -145,7 +160,6 @@ def get_admin_menu_markup(placement_enabled: bool = False) -> InlineKeyboardMark
     )
 
 
-
 @router.message(Command("admin"))
 async def cmd_admin(message: Message):
     """Open interactive Admin Control Center: /admin"""
@@ -165,19 +179,15 @@ async def cmd_admin(message: Message):
     text = (
         "👑 <b>FreshMinds Invite Bot — Admin Control Center</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "Select an action or use direct commands:\n\n"
+        "🎛️ <b>የአገልግሎቶች መክፈቻና መዝጊያ (Feature Toggles CMS):</b>\n"
+        "የሚፈልጉትን አገልግሎት በ 1-Tap <b>ማብራት (🟢 ON)</b> ወይም <b>ማጥፋት (🔴 OFF)</b> ይችላሉ:\n\n"
         "• <code>/admin_stats</code> ➜ View global growth analytics\n"
-        "• <code>/audit &lt;user_id&gt;</code> ➜ View a user's invited members\n"
-        "• <code>/add_points &lt;user_id&gt; &lt;points&gt;</code> ➜ Add manual bonus\n"
-        "• <code>/remove_points &lt;user_id&gt; &lt;points&gt;</code> ➜ Deduct points\n"
         "• <code>/broadcast &lt;text&gt;</code> ➜ Send announcement to all\n"
-        "• <code>/reset_week &lt;name&gt;</code> ➜ Archive Top 4 and reset\n"
-        "• <code>/toggle_placement</code> ➜ Enable/Disable Placement button"
+        "• <code>/reset_week &lt;name&gt;</code> ➜ Archive Top 4 and reset"
     )
-    placement_enabled = await db.is_placement_enabled()
-    await message.answer(
-        text, parse_mode=ParseMode.HTML, reply_markup=get_admin_menu_markup(placement_enabled)
-    )
+    markup = await get_admin_menu_markup()
+    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=markup)
+
 
 
 @router.callback_query(F.data == "admin_stats")
@@ -465,29 +475,51 @@ async def cb_admin_bc_confirm(callback: CallbackQuery, bot: Bot, state: FSMConte
 
 
 
-@router.callback_query(F.data == "admin_toggle_placement")
-async def cb_admin_toggle_placement(callback: CallbackQuery):
-    """Toggles placement feature visibility on and off."""
+@router.callback_query(F.data.startswith("admin_toggle_"))
+async def cb_admin_toggle_feature(callback: CallbackQuery):
+    """Universal toggle handler for all bot features."""
     if not is_admin(callback.from_user.id):
         return
-    current_status = await db.is_placement_enabled()
-    new_status = not current_status
-    await db.set_placement_enabled(new_status)
+    feature_key = callback.data.partition("admin_toggle_")[2]
 
-    status_alert = (
-        "🟢 የምደባ ማወቂያ በርቷል (ENABLED)!\nአሁን ለተማሪዎች በዋናው ሜኑ ይታያል።"
-        if new_status
-        else "🔴 የምደባ ማወቂያ ጠፍቷል (DISABLED)!\nአሁን ከዋናው ሜኑ ለተማሪዎች ተደብቋል።"
-    )
-    await callback.answer(status_alert, show_alert=True)
+    if feature_key == "placement":
+        cur = await db.is_placement_enabled()
+        new_val = not cur
+        await db.set_placement_enabled(new_val)
+        lbl = "🎓 Placement Check"
+    elif feature_key == "ai_quiz":
+        cur = await db.is_ai_quiz_enabled()
+        new_val = not cur
+        await db.set_ai_quiz_enabled(new_val)
+        lbl = "🧪 Interactive AI Quiz"
+    elif feature_key == "uni_courses":
+        cur = await db.is_uni_courses_enabled()
+        new_val = not cur
+        await db.set_uni_courses_enabled(new_val)
+        lbl = "📖 1st Sem Course Guide"
+    elif feature_key == "universities":
+        cur = await db.is_universities_enabled()
+        new_val = not cur
+        await db.set_universities_enabled(new_val)
+        lbl = "🏛️ Universities Info"
+    elif feature_key == "gpa_calc":
+        cur = await db.is_gpa_calc_enabled()
+        new_val = not cur
+        await db.set_gpa_calc_enabled(new_val)
+        lbl = "𝚺 GPA Calculator"
+    else:
+        return
+
+    status_str = "🟢 በርቷል (ENABLED)" if new_val else "🔴 ጠፍቷል (DISABLED)"
+    await callback.answer(f"{lbl}: {status_str}", show_alert=True)
 
     if isinstance(callback.message, Message):
         try:
-            await callback.message.edit_reply_markup(
-                reply_markup=get_admin_menu_markup(new_status)
-            )
+            markup = await get_admin_menu_markup()
+            await callback.message.edit_reply_markup(reply_markup=markup)
         except Exception:
             pass
+
 
 
 @router.message(Command("toggle_placement"))

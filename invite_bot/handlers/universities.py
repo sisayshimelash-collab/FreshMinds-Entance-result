@@ -77,7 +77,15 @@ async def show_db_universities_info_list(target: Message | CallbackQuery):
 @router.message(Command("universities"))
 @router.message(Command("uni"))
 async def handle_db_universities_info(message: Message, bot: Bot):
-    """Entry point for General University Info & Departments — gated behind channel membership."""
+    """Entry point for General University Info & Departments — gated behind channel membership and admin toggle."""
+    if not await db.is_universities_enabled():
+        await message.answer(
+            "ℹ️ <b>የዩኒቨርሲቲዎች መረጃ አገልግሎት በጊዜያዊነት በአድሚን ተዘግቷል!</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "አገልግሎቱ በጊዜያዊነት የተዘጋ ሲሆን በቅርቡ የሚከፈት ይሆናል።",
+            parse_mode=ParseMode.HTML,
+        )
+        return
     if not await check_and_credit_membership(bot, message.from_user):
         await send_feature_lock_message(message, "🏛️ የዩኒቨርሲቲዎች መረጃን", "retry_feature_universities")
         return
@@ -87,6 +95,9 @@ async def handle_db_universities_info(message: Message, bot: Bot):
 @router.callback_query(F.data == "retry_feature_universities")
 async def handle_retry_universities(callback: CallbackQuery, bot: Bot):
     """Retry handler for universities info after user joins channel."""
+    if not await db.is_universities_enabled():
+        await callback.answer("⚠️ የዩኒቨርሲቲዎች መረጃ አገልግሎት በጊዜያዊነት በአድሚን ተዘግቷል!", show_alert=True)
+        return
     if not await check_and_credit_membership(bot, callback.from_user):
         await callback.answer("⚠️ እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ!", show_alert=True)
         return
@@ -195,7 +206,15 @@ async def show_university_course_guide_list(target: Message | CallbackQuery):
 @router.message(Command("unicourses"))
 @router.message(Command("courseguide"))
 async def handle_uni_courses_menu(message: Message, bot: Bot):
-    """Entry point for 1st Semester Course Guide — gated behind channel membership."""
+    """Entry point for 1st Semester Course Guide — gated behind channel membership and admin toggle."""
+    if not await db.is_uni_courses_enabled():
+        await message.answer(
+            "ℹ️ <b>የ 1ኛ ሴሚስተር ኮርሶች መረጃ በጊዜያዊነት በአድሚን ተዘግቷል!</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "አገልግሎቱ በጊዜያዊነት የተዘጋ ሲሆን በቅርቡ የሚከፈት ይሆናል።",
+            parse_mode=ParseMode.HTML,
+        )
+        return
     if not await check_and_credit_membership(bot, message.from_user):
         await send_feature_lock_message(message, "📖 የ 1ኛ ሴሚስተር ኮርሶችን", "retry_feature_unicourses")
         return
@@ -206,6 +225,9 @@ async def handle_uni_courses_menu(message: Message, bot: Bot):
 @router.callback_query(F.data == "courses_guide_menu")
 async def handle_retry_unicourses(callback: CallbackQuery, bot: Bot):
     """Retry / navigation handler for course guide."""
+    if not await db.is_uni_courses_enabled():
+        await callback.answer("⚠️ የ 1ኛ ሴሚስተር ኮርሶች መረጃ በጊዜያዊነት በአድሚን ተዘግቷል!", show_alert=True)
+        return
     if not await check_and_credit_membership(bot, callback.from_user):
         await callback.answer("⚠️ እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ!", show_alert=True)
         return

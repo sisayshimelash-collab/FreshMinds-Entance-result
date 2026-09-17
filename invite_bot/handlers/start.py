@@ -25,21 +25,30 @@ router = Router()
 
 
 def get_main_menu_keyboard(
-    has_active_comp: bool = False, show_placement: bool = False
+    has_active_comp: bool = False,
+    show_placement: bool = False,
+    show_uni_courses: bool = True,
+    show_universities: bool = True,
+    show_gpa_calc: bool = True,
 ) -> ReplyKeyboardMarkup:
-    """Persistent bottom reply keyboard. Conditionally shows placement and competition buttons."""
+    """Persistent bottom reply keyboard. Conditionally shows placement and feature buttons."""
     rows = []
     if show_placement:
         rows.append([KeyboardButton(text=msg.BTN_PLACEMENT)])
 
-    rows.append([
-        KeyboardButton(text=msg.BTN_RESOURCES),
-        KeyboardButton(text=msg.BTN_UNI_COURSES),
-    ])
-    rows.append([
-        KeyboardButton(text=msg.BTN_UNIVERSITIES),
-        KeyboardButton(text=msg.BTN_GPA_CALC),
-    ])
+    row1 = [KeyboardButton(text=msg.BTN_RESOURCES)]
+    if show_uni_courses:
+        row1.append(KeyboardButton(text=msg.BTN_UNI_COURSES))
+    rows.append(row1)
+
+    row2 = []
+    if show_universities:
+        row2.append(KeyboardButton(text=msg.BTN_UNIVERSITIES))
+    if show_gpa_calc:
+        row2.append(KeyboardButton(text=msg.BTN_GPA_CALC))
+    if row2:
+        rows.append(row2)
+
     if has_active_comp:
         rows.append([
             KeyboardButton(text=msg.BTN_GET_LINK),
@@ -56,6 +65,23 @@ def get_main_menu_keyboard(
         resize_keyboard=True,
         persistent=True,
     )
+
+
+async def get_active_main_menu_keyboard(has_active_comp: bool = False) -> ReplyKeyboardMarkup:
+    """Fetches feature flags dynamically from DB to construct the reply keyboard."""
+    show_placement = await db.is_placement_enabled()
+    show_uni_courses = await db.is_uni_courses_enabled()
+    show_universities = await db.is_universities_enabled()
+    show_gpa_calc = await db.is_gpa_calc_enabled()
+
+    return get_main_menu_keyboard(
+        has_active_comp=has_active_comp,
+        show_placement=show_placement,
+        show_uni_courses=show_uni_courses,
+        show_universities=show_universities,
+        show_gpa_calc=show_gpa_calc,
+    )
+
 
 
 
@@ -176,11 +202,11 @@ async def handle_start(message: Message, bot: Bot):
         reply_markup=inline_markup,
         disable_web_page_preview=True,
     )
-    show_placement = await db.is_placement_enabled()
+    reply_markup = await get_active_main_menu_keyboard(has_active_comp=has_comp)
     await message.answer(
         "👇 <b>ከታች ያሉትን የቦቱን አገልግሎቶች ይጠቀሙ:</b>",
         parse_mode=ParseMode.HTML,
-        reply_markup=get_main_menu_keyboard(has_active_comp=has_comp, show_placement=show_placement),
+        reply_markup=reply_markup,
     )
 
 
@@ -268,11 +294,11 @@ async def handle_help(message: Message):
         reply_markup=get_welcome_join_inline_markup(),
         disable_web_page_preview=True,
     )
-    show_placement = await db.is_placement_enabled()
+    reply_markup = await get_active_main_menu_keyboard(has_active_comp=has_comp)
     await message.answer(
         "👇 <b>ከታች ያሉትን የቦቱን አገልግሎቶች ይጠቀሙ:</b>",
         parse_mode=ParseMode.HTML,
-        reply_markup=get_main_menu_keyboard(has_active_comp=has_comp, show_placement=show_placement),
+        reply_markup=reply_markup,
     )
 
 
