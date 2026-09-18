@@ -64,6 +64,11 @@ class AdminCompState(StatesGroup):
     waiting_for_end_date = State()
 
 
+class AdminCampusCallState(StatesGroup):
+    waiting_for_uni = State()
+    waiting_for_post = State()
+
+
 CATEGORY_NAMES = {
     "module": "📖 Official Module (PDF)",
     "note": "📝 Summary Notes & Handouts",
@@ -87,12 +92,14 @@ async def get_admin_menu_markup() -> InlineKeyboardMarkup:
     uc_on = await db.is_uni_courses_enabled()
     u_on = await db.is_universities_enabled()
     gpa_on = await db.is_gpa_calc_enabled()
+    cc_on = await db.is_campus_calls_enabled()
 
     p_str = "🎓 Placement: 🟢 ON" if p_on else "🎓 Placement: 🔴 OFF"
     ai_str = "🧪 AI Quiz: 🟢 ON" if ai_on else "🧪 AI Quiz: 🔴 OFF"
     uc_str = "📖 1st Sem Guide: 🟢 ON" if uc_on else "📖 1st Sem Guide: 🔴 OFF"
     u_str = "🏛️ Uni Info: 🟢 ON" if u_on else "🏛️ Uni Info: 🔴 OFF"
     gpa_str = "𝚺 GPA Calc: 🟢 ON" if gpa_on else "𝚺 GPA Calc: 🔴 OFF"
+    cc_str = "📢 Calls: 🟢 ON" if cc_on else "📢 Calls: 🔴 OFF"
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -106,6 +113,12 @@ async def get_admin_menu_markup() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(text=gpa_str, callback_data="admin_toggle_gpa_calc"),
+                InlineKeyboardButton(text=cc_str, callback_data="admin_toggle_campus_calls"),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📢 Campus Calls CMS", callback_data="admin_calls_menu"
+                ),
             ],
             [
                 InlineKeyboardButton(
@@ -507,6 +520,11 @@ async def cb_admin_toggle_feature(callback: CallbackQuery):
         new_val = not cur
         await db.set_gpa_calc_enabled(new_val)
         lbl = "𝚺 GPA Calculator"
+    elif feature_key == "campus_calls":
+        cur = await db.is_campus_calls_enabled()
+        new_val = not cur
+        await db.set_campus_calls_enabled(new_val)
+        lbl = "📢 University Campus Calls"
     else:
         return
 
@@ -2253,4 +2271,272 @@ async def cb_admin_comp_history(callback: CallbackQuery):
         ]
     )
     await callback.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ── University Campus Calls CMS (Official Forwarded Announcements) ──────────
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "admin_calls_menu")
+async def cb_admin_calls_menu(callback: CallbackQuery, state: FSMContext = None):
+    """Main Campus Calls CMS panel."""
+    if not is_admin(callback.from_user.id):
+        return
+    if state:
+        await state.clear()
+    await callback.answer()
+
+    calls = await db.get_all_campus_calls()
+    cc_on = await db.is_campus_calls_enabled()
+    status_str = "🟢 ON (Visible to students)" if cc_on else "🔴 OFF (Hidden from students)"
+
+    text = (
+        "📢 <b>Freshman Campus Calls CMS (የዩኒቨርሲቲ ጥሪ ማስተዳደሪያ)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"⚙️ Feature Status: <b>{status_str}</b>\n"
+        f"📊 Currently Posted Calls: <b>{len(calls)}</b>\n\n"
+        "💡 <b>Zero-Friction Forward Workflow:</b>\n"
+        "1. Tap <b>'➕ Post Campus Call'</b>\n"
+        "2. Pick or type University\n"
+        "3. Directly <b>forward the post (image + caption)</b> from any channel!\n"
+        "The bot will automatically extract the image and full caption."
+    )
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="➕ Post Campus Call (አዲስ ጥሪ ለጥፍ)", callback_data="admin_add_call_start"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🗑️ Delete a Call (የተለጠፈ ጥሪ ሰርዝ)", callback_data="admin_del_call_list"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔙 Back to Admin", callback_data="admin_main_menu"
+                )
+            ],
+        ]
+    )
+    if isinstance(callback.message, Message):
+        await callback.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
+    else:
+        await callback.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "admin_add_call_start")
+async def cb_admin_add_call_start(callback: CallbackQuery, state: FSMContext):
+    """Step 1: Pick or enter university name."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    await state.set_state(AdminCampusCallState.waiting_for_uni)
+
+    unis = await db.get_all_universities()
+    buttons = []
+    row = []
+    for u in unis[:12]:
+        short_name = u.name.replace("University", "Uni").replace("Science & Technology", "Sci-Tech")
+        row.append(InlineKeyboardButton(text=short_name, callback_data=f"adcall_uni_{u.id}"))
+        if len(row) == 2:
+            buttons.append(row)
+            row = []
+    if row:
+        buttons.append(row)
+
+    buttons.append([InlineKeyboardButton(text="❌ Cancel", callback_data="admin_calls_menu")])
+
+    text = (
+        "➕ <b>Post University Campus Call (Step 1/2)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Please select or type the <b>University Name</b>:\n\n"
+        "• Tap one of the universities below, OR\n"
+        "• Send any custom university name in chat (e.g. <code>Addis Ababa University</code>):"
+    )
+    await callback.message.answer(
+        text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
+    )
+
+
+@router.callback_query(F.data.startswith("adcall_uni_"))
+async def cb_admin_call_pick_uni(callback: CallbackQuery, state: FSMContext):
+    """Admin clicked a university quick-button."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    uni_id_str = callback.data.partition("adcall_uni_")[2]
+    uni = await db.get_university_by_id(int(uni_id_str))
+    uni_name = uni.name if uni else "University"
+
+    await state.update_data(uni_name=uni_name)
+    await state.set_state(AdminCampusCallState.waiting_for_post)
+
+    cancel_kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel", callback_data="admin_calls_menu")]]
+    )
+    await callback.message.answer(
+        f"📥 <b>Selected: {html.escape(uni_name)} (Step 2/2)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Now <b>forward or send the announcement post directly</b> into this chat:\n\n"
+        "📸 <b>Photo with Caption</b> (Official announcement poster / letter)\n"
+        "📝 <b>Or Text Message</b>\n\n"
+        "<i>The bot will extract the photo and full text automatically!</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=cancel_kb,
+    )
+
+
+@router.message(AdminCampusCallState.waiting_for_uni)
+async def msg_admin_call_type_uni(message: Message, state: FSMContext):
+    """Admin typed a custom university name."""
+    if not is_admin(message.from_user.id):
+        return
+    uni_name = (message.text or "").strip()
+    if len(uni_name) < 3:
+        await message.answer("⚠️ University name is too short. Please type a valid name:")
+        return
+
+    await state.update_data(uni_name=uni_name)
+    await state.set_state(AdminCampusCallState.waiting_for_post)
+
+    cancel_kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel", callback_data="admin_calls_menu")]]
+    )
+    await message.answer(
+        f"📥 <b>Selected: {html.escape(uni_name)} (Step 2/2)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Now <b>forward or send the announcement post directly</b> into this chat:\n\n"
+        "📸 <b>Photo with Caption</b> (Official announcement poster / letter)\n"
+        "📝 <b>Or Text Message</b>\n\n"
+        "<i>The bot will extract the photo and full text automatically!</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=cancel_kb,
+    )
+
+
+@router.message(AdminCampusCallState.waiting_for_post)
+async def msg_admin_call_save_post(message: Message, state: FSMContext, bot: Bot):
+    """Receives forwarded post (photo+caption or text) and publishes campus call."""
+    if not is_admin(message.from_user.id):
+        return
+
+    data = await state.get_data()
+    uni_name = data.get("uni_name", "University")
+    await state.clear()
+
+    photo_file_id = None
+    caption = None
+
+    if message.photo:
+        photo_file_id = message.photo[-1].file_id
+        caption = message.caption
+    elif message.document and message.document.mime_type and message.document.mime_type.startswith("image/"):
+        photo_file_id = message.document.file_id
+        caption = message.caption
+    elif message.text:
+        caption = message.text
+
+    if not photo_file_id and not caption:
+        await message.answer(
+            "⚠️ Please forward or send an announcement with a photo, caption, or text."
+        )
+        return
+
+    await db.add_campus_call(
+        university_name=uni_name,
+        caption=caption,
+        photo_file_id=photo_file_id,
+    )
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="➕ Post Another Call (ሌላ ጨምር)", callback_data="admin_add_call_start"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📢 Campus Calls CMS", callback_data="admin_calls_menu"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="👑 Admin Menu", callback_data="admin_main_menu"
+                )
+            ],
+        ]
+    )
+
+    success_text = (
+        f"🎉 <b>Campus Call Announcement Published!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🏛️ University: <b>{html.escape(uni_name)}</b>\n"
+        f"📸 Photo Attached: <b>{'Yes ✅' if photo_file_id else 'No (Text Only)'}</b>\n"
+        f"📝 Caption Length: <b>{len(caption or '')} characters</b>\n\n"
+        f"Students can now view it under <b>'{msg.BTN_CAMPUS_CALLS}'</b>!"
+    )
+    if photo_file_id:
+        await bot.send_photo(
+            chat_id=message.chat.id,
+            photo=photo_file_id,
+            caption=success_text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=kb,
+        )
+    else:
+        await message.answer(success_text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
+@router.callback_query(F.data == "admin_del_call_list")
+async def cb_admin_del_call_list(callback: CallbackQuery):
+    """List of calls to delete."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+
+    calls = await db.get_all_campus_calls()
+    if not calls:
+        await callback.message.answer(
+            "ℹ️ No active campus call announcements to delete.",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="🔙 Back", callback_data="admin_calls_menu")]]
+            ),
+        )
+        return
+
+    buttons = []
+    for c in calls:
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"🗑️ Delete: {c.university_name[:25]}",
+                callback_data=f"admin_del_call_do_{c.id}",
+            )
+        ])
+    buttons.append([InlineKeyboardButton(text="🔙 Back to CMS", callback_data="admin_calls_menu")])
+
+    await callback.message.answer(
+        "🗑️ <b>Delete Campus Call Announcement</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Tap any university announcement to permanently delete it:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+    )
+
+
+@router.callback_query(F.data.startswith("admin_del_call_do_"))
+async def cb_admin_del_call_do(callback: CallbackQuery):
+    """Performs deletion of a campus call."""
+    if not is_admin(callback.from_user.id):
+        return
+    call_id_str = callback.data.partition("admin_del_call_do_")[2]
+    if not call_id_str.isdigit():
+        return
+
+    call_id = int(call_id_str)
+    await db.delete_campus_call(call_id)
+    await callback.answer("🗑️ Campus call announcement deleted successfully!", show_alert=True)
+    await cb_admin_calls_menu(callback)
 

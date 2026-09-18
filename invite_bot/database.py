@@ -76,6 +76,14 @@ class PlacementCacheRecord(NamedTuple):
     fetched_at: str
 
 
+class CampusCallRecord(NamedTuple):
+    id: int
+    university_name: str
+    caption: Optional[str]
+    photo_file_id: Optional[str]
+    created_at: str
+
+
 
 class Database:
     """Async SQLite database manager for user links, referrals, and leaderboards."""
@@ -196,6 +204,17 @@ class Database:
                     courses_json TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(university_name, stream_name)
+                );
+            """)
+
+            # 10. University Campus Calls Table (Forwarded official announcements)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS campus_calls (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    university_name TEXT NOT NULL,
+                    caption TEXT,
+                    photo_file_id TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
 
@@ -1144,6 +1163,90 @@ class Database:
     async def set_gpa_calc_enabled(self, enabled: bool):
         """Enable (1) or disable (0) GPA calculator feature."""
         await self.set_setting("gpa_calc_enabled", "1" if enabled else "0")
+
+    async def is_campus_calls_enabled(self) -> bool:
+        """Check if campus calls feature is enabled (default 1 = enabled)."""
+        val = await self.get_setting("campus_calls_enabled", default="1")
+        return str(val).strip() == "1"
+
+    async def set_campus_calls_enabled(self, enabled: bool):
+        """Enable (1) or disable (0) campus calls feature."""
+        await self.set_setting("campus_calls_enabled", "1" if enabled else "0")
+
+    # ── University Campus Calls CRUD ──────────────────────────────────────────
+
+    async def add_campus_call(
+        self,
+        university_name: str,
+        caption: Optional[str] = None,
+        photo_file_id: Optional[str] = None,
+    ) -> int:
+        """Store forwarded university campus call notice."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                """
+                INSERT INTO campus_calls (university_name, caption, photo_file_id)
+                VALUES (?, ?, ?)
+                """,
+                (university_name.strip(), caption.strip() if caption else None, photo_file_id),
+            )
+            await db.commit()
+            return cursor.lastrowid
+
+    async def get_all_campus_calls(self) -> list[CampusCallRecord]:
+        """Fetch all posted campus calls ordered by newest first."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT id, university_name, caption, photo_file_id, created_at
+                FROM campus_calls
+                ORDER BY id DESC
+                """
+            )
+            rows = await cursor.fetchall()
+            return [
+                CampusCallRecord(
+                    id=r["id"],
+                    university_name=r["university_name"],
+                    caption=r["caption"],
+                    photo_file_id=r["photo_file_id"],
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    async def get_campus_call_by_id(self, call_id: int) -> Optional[CampusCallRecord]:
+        """Fetch a specific campus call by ID."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT id, university_name, caption, photo_file_id, created_at
+                FROM campus_calls
+                WHERE id = ?
+                """,
+                (call_id,),
+            )
+            r = await cursor.fetchone()
+            if r:
+                return CampusCallRecord(
+                    id=r["id"],
+                    university_name=r["university_name"],
+                    caption=r["caption"],
+                    photo_file_id=r["photo_file_id"],
+                    created_at=r["created_at"],
+                )
+            return None
+
+    async def delete_campus_call(self, call_id: int) -> bool:
+        """Delete a campus call by ID."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "DELETE FROM campus_calls WHERE id = ?", (call_id,)
+            )
+            await db.commit()
+            return cursor.rowcount > 0
 
 
     # ── Custom University Courses CRUD ─────────────────────────────────────────

@@ -14,6 +14,7 @@ from .resources import router as resources_router
 from .universities import router as universities_router
 from .gpa_calculator import router as gpa_calculator_router
 from .placement import router as placement_router
+from .campus_calls import router as campus_calls_router
 from .ai_quiz import router as ai_quiz_router
 
 
@@ -22,6 +23,7 @@ def setup_routers() -> Router:
     main_router.include_router(tracker_router)  # ChatMemberUpdated priority
     main_router.include_router(admin_router)
     main_router.include_router(placement_router)
+    main_router.include_router(campus_calls_router)
     main_router.include_router(resources_router)
     main_router.include_router(ai_quiz_router)
     main_router.include_router(universities_router)

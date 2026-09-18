@@ -14,6 +14,7 @@ from config import (
 
 # ── Main Menu Keyboard Labels ────────────────────────────────────────────────
 BTN_PLACEMENT = "🎓 የዩኒቨርሲቲ ምደባ (Placement)"
+BTN_CAMPUS_CALLS = "📢 የዩኒቨርሲቲ ጥሪ (Campus Calls)"
 BTN_RESOURCES = "📚 ኮርሶችና ማቴሪያሎች (Resources)"
 BTN_UNIVERSITIES = "🏛️ የዩኒቨርሲቲዎች መረጃ (Universities)"
 BTN_UNI_COURSES = "📖 የዩኒቨርሲቲ 1ኛ ሴሚስተር ኮርሶች (Course Guide)"
