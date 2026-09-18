@@ -50,7 +50,7 @@ async def show_campus_calls_list(target: Message | CallbackQuery):
             "📢 <b>የኢትዮጵያ ዩኒቨርሲቲዎች ጥሪ (Campus Calls)</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
             "ℹ️ <b>እስካሁን ምንም ዩኒቨርሲቲ ጥሪ አላደረገም!</b>\n\n"
-            "ዩኒቨርሲቲዎች ለ 2017/2019 ዓ.ም የ Freshman ተማሪዎች ይፋዊ የመግቢያ ጥሪ እንዳወጡ ወዲያውኑ እዚህ ይለጠፋሉ።\n\n"
+            "ዩኒቨርሲቲዎች ለ 2019 ዓ.ም የ Freshman ተማሪዎች ይፋዊ የመግቢያ ጥሪ እንዳወጡ ወዲያውኑ እዚህ ይለጠፋሉ።\n\n"
             f"🔔 አዳዲስ መረጃዎችን በፍጥነት ለማግኘት ቻናላችንን @{TARGET_CHANNEL} ይከታተሉ!"
         )
         refresh_kb = InlineKeyboardMarkup(
