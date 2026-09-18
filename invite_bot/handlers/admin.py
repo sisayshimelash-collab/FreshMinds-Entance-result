@@ -210,9 +210,9 @@ async def cb_admin_stats(callback: CallbackQuery):
         f"📉 የለቀቁ (Left/Churned): <b>{total_joins - active_joins:,} ({churn_rate:.1f}%)</b>\n"
         "━━━━━━━━━━━━━━━━━━━━"
     )
-    placement_enabled = await db.is_placement_enabled()
+    markup = await get_admin_menu_markup()
     await callback.message.answer(
-        text, parse_mode=ParseMode.HTML, reply_markup=get_admin_menu_markup(placement_enabled)
+        text, parse_mode=ParseMode.HTML, reply_markup=markup
     )
 
 
@@ -240,11 +240,11 @@ async def cb_admin_top(callback: CallbackQuery):
     if not top_users:
         lines.append("<i>No referrals yet.</i>")
     lines.append("━━━━━━━━━━━━━━━━━━━━")
-    placement_enabled = await db.is_placement_enabled()
+    markup = await get_admin_menu_markup()
     await callback.message.answer(
         "\n".join(lines),
         parse_mode=ParseMode.HTML,
-        reply_markup=get_admin_menu_markup(placement_enabled),
+        reply_markup=markup,
     )
 
 
@@ -269,11 +269,11 @@ async def cb_admin_users(callback: CallbackQuery):
             f"{idx}. <b>{display_name}</b> ({uname}) | ID: <code>{u['user_id']}</code> | <b>{u['active_points']}</b> pts"
         )
     lines.append("━━━━━━━━━━━━━━━━━━━━")
-    placement_enabled = await db.is_placement_enabled()
+    markup = await get_admin_menu_markup()
     await callback.message.answer(
         "\n".join(lines),
         parse_mode=ParseMode.HTML,
-        reply_markup=get_admin_menu_markup(placement_enabled),
+        reply_markup=markup,
     )
 
 
@@ -593,7 +593,7 @@ async def cb_admin_main_menu(callback: CallbackQuery, state: FSMContext):
         return
     await state.clear()
     await callback.answer()
-    placement_enabled = await db.is_placement_enabled()
+    markup = await get_admin_menu_markup()
     text = (
         "👑 <b>FreshMinds Invite Bot — Admin Control Center</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
@@ -601,7 +601,7 @@ async def cb_admin_main_menu(callback: CallbackQuery, state: FSMContext):
     )
     if isinstance(callback.message, Message):
         await callback.message.edit_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=get_admin_menu_markup(placement_enabled)
+            text, parse_mode=ParseMode.HTML, reply_markup=markup
         )
 
 
@@ -1921,7 +1921,8 @@ async def cb_admin_back_main(callback: CallbackQuery):
         "• <code>/broadcast &lt;text&gt;</code> ➜ Send announcement to all\n"
         "• <code>/reset_week &lt;name&gt;</code> ➜ Archive Top 4 and reset"
     )
-    await callback.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=get_admin_menu_markup())
+    markup = await get_admin_menu_markup()
+    await callback.message.answer(text, parse_mode=ParseMode.HTML, reply_markup=markup)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
