@@ -122,8 +122,13 @@ async def get_admin_menu_markup() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(
-                    text="🏛️ Manage Universities", callback_data="admin_unis_menu"
+                    text="🏛️ Manage University Courses", callback_data="admin_unis_menu"
                 ),
+                InlineKeyboardButton(
+                    text="🏙️ Manage University Info", callback_data="admin_uni_info_menu"
+                ),
+            ],
+            [
                 InlineKeyboardButton(
                     text="📚 Courses & Materials", callback_data="admin_courses_menu"
                 ),
@@ -1223,7 +1228,7 @@ async def cb_admin_reset_abort(callback: CallbackQuery):
 # ── Universities Management CMS ──────────────────────────────────────────────
 
 
-@router.callback_query(F.data == "admin_unis_menu")
+@router.callback_query(F.data == "admin_uni_info_menu")
 async def cb_admin_unis_menu(callback: CallbackQuery):
     """University management menu."""
     if not is_admin(callback.from_user.id):
@@ -1307,7 +1312,7 @@ async def state_admin_uni_about(message: Message, state: FSMContext):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🏛️ View Universities Menu", callback_data="admin_unis_menu")],
+            [InlineKeyboardButton(text="🏛️ View Universities Menu", callback_data="admin_uni_info_menu")],
             [InlineKeyboardButton(text="👑 Admin Menu", callback_data="admin_back_main")],
         ]
     )
@@ -1336,7 +1341,7 @@ async def cb_admin_del_uni_list(callback: CallbackQuery):
         keyboard.append([
             InlineKeyboardButton(text=f"🗑️ Delete: {u.name}", callback_data=f"admin_del_uni_do_{u.id}")
         ])
-    keyboard.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_unis_menu")])
+    keyboard.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_uni_info_menu")])
 
     await callback.message.answer(
         "🗑️ <b>Select a University to Delete:</b>",
@@ -1378,7 +1383,7 @@ async def cb_admin_copy_uni_list(callback: CallbackQuery):
                 callback_data=f"admin_copy_uni_do_{u.id}",
             )
         ])
-    keyboard.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_unis_menu")])
+    keyboard.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_uni_info_menu")])
 
     await callback.message.answer(
         "📋 <b>Select a University to View & Copy Full Description:</b>\n"
@@ -1404,7 +1409,7 @@ async def cb_admin_copy_uni_do(callback: CallbackQuery):
         inline_keyboard=[
             [InlineKeyboardButton(text=f"✏️ Edit {uni.name}", callback_data=f"admin_edit_uni_do_{uni.id}")],
             [InlineKeyboardButton(text="📋 Copy Another University", callback_data="admin_copy_uni_list")],
-            [InlineKeyboardButton(text="🏛️ Universities Menu", callback_data="admin_unis_menu")],
+            [InlineKeyboardButton(text="🏛️ Universities Menu", callback_data="admin_uni_info_menu")],
         ]
     )
 
@@ -1453,7 +1458,7 @@ async def cb_admin_edit_uni_list(callback: CallbackQuery):
                 callback_data=f"admin_edit_uni_do_{u.id}",
             )
         ])
-    keyboard.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_unis_menu")])
+    keyboard.append([InlineKeyboardButton(text="🔙 Back", callback_data="admin_uni_info_menu")])
 
     await callback.message.answer(
         "✏️ <b>Select a University to Edit:</b>\n"
@@ -1514,7 +1519,7 @@ async def state_admin_uni_edit_about(message: Message, state: FSMContext):
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text="✏️ Edit Another University", callback_data="admin_edit_uni_list")],
-                [InlineKeyboardButton(text="🏙️ Universities Menu", callback_data="admin_unis_menu")],
+                [InlineKeyboardButton(text="🏙️ Universities Menu", callback_data="admin_uni_info_menu")],
                 [InlineKeyboardButton(text="👑 Admin Menu", callback_data="admin_back_main")],
             ]
         )
