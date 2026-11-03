@@ -1969,6 +1969,10 @@ async def cb_admin_comp_menu(callback: CallbackQuery, state: FSMContext = None):
     active_comp = await db.get_active_competition()
 
     if active_comp:
+        promo_images = active_comp.get_promo_images()
+        img_count = len(promo_images)
+        img_status = f"{img_count}/10 attached (Album Mode)" if img_count > 0 else "None (Text Only)"
+
         status_header = "🟢 <b>Active Competition Running</b>"
         has_custom_promo = bool(
             active_comp.promo_post_template and active_comp.promo_post_template.strip()
@@ -1981,11 +1985,18 @@ async def cb_admin_comp_menu(callback: CallbackQuery, state: FSMContext = None):
         details = (
             f"🏆 <b>Title:</b> {html.escape(active_comp.title)}\n"
             f"⏰ <b>Ends:</b> {html.escape(active_comp.end_date_str)}\n"
-            f"📢 <b>Forward Post:</b> {promo_type_str}\n\n"
+            f"📢 <b>Forward Post:</b> {promo_type_str}\n"
+            f"🖼️ <b>Screenshots:</b> {img_status}\n\n"
             f"🎁 <b>Prizes:</b>\n{html.escape(active_comp.prizes_text)}\n\n"
             "<i>(All 8 menu buttons are currently displayed to users)</i>"
         )
         keyboard = [
+            [
+                InlineKeyboardButton(
+                    text=f"🖼️ Manage Screenshots ({img_count}/10)",
+                    callback_data="admin_comp_manage_images",
+                )
+            ],
             [
                 InlineKeyboardButton(
                     text="📢 View / Edit Forward Post",
@@ -2432,7 +2443,11 @@ async def cb_admin_comp_manage_images(callback: CallbackQuery, state: FSMContext
         InlineKeyboardButton(
             text="🔙 Back to Promo Preview",
             callback_data="admin_comp_promo_view",
-        )
+        ),
+        InlineKeyboardButton(
+            text="🔙 Competitions CMS",
+            callback_data="admin_comp_menu",
+        ),
     ])
 
     details = (
