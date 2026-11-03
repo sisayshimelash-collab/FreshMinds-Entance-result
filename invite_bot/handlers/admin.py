@@ -2090,7 +2090,7 @@ async def msg_comp_title(message: Message, state: FSMContext):
     """Step 2: Save title and ask for prizes text."""
     if not is_admin(message.from_user.id):
         return
-    title = message.text.strip()
+    title = (message.text or "").strip()
     if not title:
         await message.answer("⚠️ Please provide a valid title text.")
         return
@@ -2122,7 +2122,7 @@ async def msg_comp_prizes(message: Message, state: FSMContext):
     """Step 3: Save prizes and ask for end date string."""
     if not is_admin(message.from_user.id):
         return
-    prizes_text = message.text.strip()
+    prizes_text = (message.text or "").strip()
     if not prizes_text:
         await message.answer("⚠️ Please provide a valid prizes description.")
         return
@@ -2151,7 +2151,7 @@ async def msg_comp_end_date(message: Message, state: FSMContext):
     """Step 4: Save end date and offer choice between Default Rich Post and Custom Promo Post."""
     if not is_admin(message.from_user.id):
         return
-    end_date_str = message.text.strip()
+    end_date_str = (message.text or "").strip()
     if not end_date_str:
         await message.answer("⚠️ Please provide a valid end date string.")
         return
@@ -2268,9 +2268,17 @@ async def msg_comp_custom_promo(message: Message, state: FSMContext):
     """Save custom promo post and activate competition."""
     if not is_admin(message.from_user.id):
         return
-    promo_text = message.text.strip()
+    raw_text = message.text or message.caption or ""
+    promo_text = raw_text.strip()
     if not promo_text:
-        await message.answer("⚠️ Please provide a non-empty promo text.")
+        if message.photo:
+            await message.answer(
+                "⚠️ You sent a photo. Promotional text template must be text (or include a caption).\n"
+                "You can add screenshots separately via <b>🖼️ Manage Screenshots</b> after creating the competition.",
+                parse_mode=ParseMode.HTML,
+            )
+        else:
+            await message.answer("⚠️ Please provide a non-empty promo text.")
         return
 
     data = await state.get_data()
@@ -2515,6 +2523,40 @@ async def msg_admin_comp_photo_upload(message: Message, state: FSMContext):
     )
 
 
+@router.message(AdminCompState.waiting_for_promo_images, ~F.photo)
+async def msg_admin_comp_photo_upload_other(message: Message, state: FSMContext):
+    """Handle non-photo messages during screenshot upload."""
+    if not is_admin(message.from_user.id):
+        return
+    if (message.text or "").strip() in ("/cancel", "cancel"):
+        await state.clear()
+        await message.answer("❌ Screenshot upload cancelled.")
+        return
+
+    data = await state.get_data()
+    uploaded = data.get("uploaded_images", [])
+    count = len(uploaded)
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"✅ Done Uploading ({count})", callback_data="admin_comp_done_images")],
+            [InlineKeyboardButton(text="❌ Cancel", callback_data="admin_comp_manage_images")],
+        ]
+    )
+    if message.document:
+        await message.answer(
+            "⚠️ Please send images as <b>Photos</b> (compressed), not as uncompressed files/documents.\n"
+            "Or tap <b>✅ Done Uploading</b> when you have finished.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+        )
+    else:
+        await message.answer(
+            "⚠️ Please send screenshot photos (up to 10), or tap <b>✅ Done Uploading</b> to finish.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+        )
+
+
 @router.callback_query(F.data == "admin_comp_done_images")
 async def cb_admin_comp_done_images(callback: CallbackQuery, state: FSMContext):
     """Save collected images and exit upload state."""
@@ -2637,9 +2679,19 @@ async def msg_comp_edit_promo_save(message: Message, state: FSMContext):
     """Save updated promo post for active competition."""
     if not is_admin(message.from_user.id):
         return
-    promo_text = message.text.strip()
+    raw_text = message.text or message.caption or ""
+    promo_text = raw_text.strip()
     if not promo_text:
-        await message.answer("⚠️ Please provide a non-empty text.")
+        if message.photo:
+            await message.answer(
+                "⚠️ <b>You sent a photo.</b>\n"
+                "This input is for changing the promotional <b>text message</b>.\n\n"
+                "💡 To upload or change promotional screenshots (forwarded as an album), please go to:\n"
+                "<b>Competitions CMS ➔ View/Edit Forward Post ➔ 🖼️ Manage Screenshots</b>.",
+                parse_mode=ParseMode.HTML,
+            )
+        else:
+            await message.answer("⚠️ Please provide a non-empty text message.")
         return
 
     await db.update_active_competition_promo(promo_text)
