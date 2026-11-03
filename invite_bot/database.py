@@ -66,6 +66,18 @@ class CompetitionRecord(NamedTuple):
     is_active: int
     created_at: str
     promo_post_template: Optional[str] = None
+    promo_images_json: Optional[str] = None
+
+    def get_promo_images(self) -> list[str]:
+        """Returns list of Telegram file_ids for promotional screenshots."""
+        if not self.promo_images_json:
+            return []
+        try:
+            import json
+            data = json.loads(self.promo_images_json)
+            return [str(x) for x in data if x] if isinstance(data, list) else []
+        except Exception:
+            return []
 
 
 class PlacementCacheRecord(NamedTuple):
@@ -283,14 +295,19 @@ class Database:
                     prizes_text TEXT NOT NULL,
                     end_date_str TEXT NOT NULL,
                     promo_post_template TEXT,
+                    promo_images_json TEXT,
                     is_active INTEGER DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
 
-            # Ensure promo_post_template column exists if table was created previously
+            # Ensure columns exist if table was created previously
             try:
                 await db.execute("ALTER TABLE competitions ADD COLUMN promo_post_template TEXT;")
+            except Exception:
+                pass
+            try:
+                await db.execute("ALTER TABLE competitions ADD COLUMN promo_images_json TEXT;")
             except Exception:
                 pass
 
@@ -919,7 +936,7 @@ class Database:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
                 """
-                SELECT id, title, prizes_text, end_date_str, is_active, created_at, promo_post_template
+                SELECT id, title, prizes_text, end_date_str, is_active, created_at, promo_post_template, promo_images_json
                 FROM competitions
                 WHERE is_active = 1
                 ORDER BY id DESC
@@ -936,6 +953,7 @@ class Database:
                     is_active=row["is_active"],
                     created_at=row["created_at"],
                     promo_post_template=row["promo_post_template"] if "promo_post_template" in row.keys() else None,
+                    promo_images_json=row["promo_images_json"] if "promo_images_json" in row.keys() else None,
                 )
             return None
 
@@ -945,6 +963,7 @@ class Database:
         prizes_text: str,
         end_date_str: str,
         promo_post_template: Optional[str] = None,
+        promo_images_json: Optional[str] = None,
     ) -> int:
         """Create a new active competition, deactivating any existing active ones and clearing active referrals."""
         async with aiosqlite.connect(self.db_path) as db:
@@ -958,12 +977,17 @@ class Database:
                 if promo_post_template and promo_post_template.strip()
                 else None
             )
+            clean_images = (
+                promo_images_json.strip()
+                if promo_images_json and promo_images_json.strip()
+                else None
+            )
             cursor = await db.execute(
                 """
-                INSERT INTO competitions (title, prizes_text, end_date_str, promo_post_template, is_active)
-                VALUES (?, ?, ?, ?, 1)
+                INSERT INTO competitions (title, prizes_text, end_date_str, promo_post_template, promo_images_json, is_active)
+                VALUES (?, ?, ?, ?, ?, 1)
                 """,
-                (title.strip(), prizes_text.strip(), end_date_str.strip(), clean_promo),
+                (title.strip(), prizes_text.strip(), end_date_str.strip(), clean_promo, clean_images),
             )
             await db.commit()
             return cursor.lastrowid
@@ -981,6 +1005,23 @@ class Database:
             cursor = await db.execute(
                 "UPDATE competitions SET promo_post_template = ? WHERE is_active = 1",
                 (clean_promo,),
+            )
+            await db.commit()
+            return cursor.rowcount > 0
+
+    async def update_active_competition_promo_images(
+        self, promo_images_json: Optional[str]
+    ) -> bool:
+        """Update promotional screenshot images (JSON list of file_ids) for active competition."""
+        async with aiosqlite.connect(self.db_path) as db:
+            clean_images = (
+                promo_images_json.strip()
+                if promo_images_json and promo_images_json.strip()
+                else None
+            )
+            cursor = await db.execute(
+                "UPDATE competitions SET promo_images_json = ? WHERE is_active = 1",
+                (clean_images,),
             )
             await db.commit()
             return cursor.rowcount > 0
@@ -1026,7 +1067,7 @@ class Database:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
                 """
-                SELECT id, title, prizes_text, end_date_str, is_active, created_at, promo_post_template
+                SELECT id, title, prizes_text, end_date_str, is_active, created_at, promo_post_template, promo_images_json
                 FROM competitions
                 ORDER BY id DESC
                 """
@@ -1041,6 +1082,7 @@ class Database:
                     is_active=r["is_active"],
                     created_at=r["created_at"],
                     promo_post_template=r["promo_post_template"] if "promo_post_template" in r.keys() else None,
+                    promo_images_json=r["promo_images_json"] if "promo_images_json" in r.keys() else None,
                 )
                 for r in rows
             ]

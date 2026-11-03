@@ -79,12 +79,52 @@ async def generate_and_send_link(target: Message | CallbackQuery, bot: Bot, user
 
     chat_id = target.chat.id if isinstance(target, Message) else target.message.chat.id
 
-    await bot.send_message(
-        chat_id=chat_id,
-        text=promo_post,
-        parse_mode=ParseMode.HTML,
-        disable_web_page_preview=True,
-    )
+    # Check for promotional screenshots (up to 10 images sent as an album)
+    promo_images = comp.get_promo_images() if comp else []
+
+    if promo_images:
+        promo_caption = msg.format_promotional_post(
+            invite_link, competition=comp, is_caption=True
+        )
+        try:
+            if len(promo_images) == 1:
+                await bot.send_photo(
+                    chat_id=chat_id,
+                    photo=promo_images[0],
+                    caption=promo_caption,
+                    parse_mode=ParseMode.HTML,
+                )
+            else:
+                from aiogram.types import InputMediaPhoto
+
+                media = []
+                for i, file_id in enumerate(promo_images[:10]):
+                    if i == 0:
+                        media.append(
+                            InputMediaPhoto(
+                                media=file_id,
+                                caption=promo_caption,
+                                parse_mode=ParseMode.HTML,
+                            )
+                        )
+                    else:
+                        media.append(InputMediaPhoto(media=file_id))
+                await bot.send_media_group(chat_id=chat_id, media=media)
+        except Exception as err:
+            logger.warning(f"Could not send promo screenshots album: {err}")
+            await bot.send_message(
+                chat_id=chat_id,
+                text=promo_post,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+    else:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=promo_post,
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True,
+        )
 
     try:
         from aiogram.types import FSInputFile

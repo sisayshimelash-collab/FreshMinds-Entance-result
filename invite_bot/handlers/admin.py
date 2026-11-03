@@ -9,6 +9,7 @@ from aiogram.types import (
     CallbackQuery,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
+    InputMediaPhoto,
 )
 from aiogram.enums import ParseMode
 from aiogram.fsm.state import State, StatesGroup
@@ -65,6 +66,7 @@ class AdminCompState(StatesGroup):
     waiting_for_end_date = State()
     waiting_for_promo_post = State()
     waiting_for_edit_promo = State()
+    waiting_for_promo_images = State()
 
 
 class AdminCampusCallState(StatesGroup):
@@ -2076,6 +2078,7 @@ async def cb_admin_comp_create(callback: CallbackQuery, state: FSMContext):
 @router.message(AdminCompState.waiting_for_end_date, Command("cancel"))
 @router.message(AdminCompState.waiting_for_promo_post, Command("cancel"))
 @router.message(AdminCompState.waiting_for_edit_promo, Command("cancel"))
+@router.message(AdminCompState.waiting_for_promo_images, Command("cancel"))
 async def cmd_cancel_comp(message: Message, state: FSMContext):
     """Cancel competition creation."""
     await state.clear()
@@ -2332,7 +2335,21 @@ async def cb_admin_comp_promo_view(callback: CallbackQuery, state: FSMContext = 
         else "✨ <b>Default Rich Template Active</b>"
     )
 
+    promo_images = active_comp.get_promo_images()
+    images_count = len(promo_images)
+    images_label = (
+        f"🖼️ <b>Screenshots Attached:</b> {images_count}/10 (Media Album Mode)"
+        if images_count > 0
+        else "🖼️ <b>Screenshots Attached:</b> 0/10 (Text-Only Mode)"
+    )
+
     keyboard = [
+        [
+            InlineKeyboardButton(
+                text=f"🖼️ Manage Screenshots ({images_count}/10)",
+                callback_data="admin_comp_manage_images",
+            )
+        ],
         [
             InlineKeyboardButton(
                 text="✏️ Change / Write Custom Post",
@@ -2355,6 +2372,7 @@ async def cb_admin_comp_promo_view(callback: CallbackQuery, state: FSMContext = 
 
     await callback.message.answer(
         f"📢 <b>Promotional Post Preview</b> ({status_label}):\n"
+        f"{images_label}\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         f"{preview_text}\n"
         "━━━━━━━━━━━━━━━━━━━━",
@@ -2362,6 +2380,234 @@ async def cb_admin_comp_promo_view(callback: CallbackQuery, state: FSMContext = 
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
         disable_web_page_preview=True,
     )
+
+
+@router.callback_query(F.data == "admin_comp_manage_images")
+async def cb_admin_comp_manage_images(callback: CallbackQuery, state: FSMContext = None):
+    """Screenshot images management menu."""
+    if not is_admin(callback.from_user.id):
+        return
+    if state:
+        await state.clear()
+    await callback.answer()
+
+    active_comp = await db.get_active_competition()
+    if not active_comp:
+        await callback.message.answer("⚠️ No active competition found.")
+        return
+
+    images = active_comp.get_promo_images()
+    count = len(images)
+
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                text=f"➕ Upload / Replace Screenshots ({count}/10)",
+                callback_data="admin_comp_upload_images_start",
+            )
+        ]
+    ]
+    if count > 0:
+        keyboard.append([
+            InlineKeyboardButton(
+                text="👁️ Preview Screenshots Album",
+                callback_data="admin_comp_preview_images",
+            )
+        ])
+        keyboard.append([
+            InlineKeyboardButton(
+                text="🗑️ Remove All Screenshots",
+                callback_data="admin_comp_clear_images",
+            )
+        ])
+    keyboard.append([
+        InlineKeyboardButton(
+            text="🔙 Back to Promo Preview",
+            callback_data="admin_comp_promo_view",
+        )
+    ])
+
+    details = (
+        f"🖼️ <b>Current Status:</b> {count}/10 images configured.\n\n"
+        "💡 <i>When screenshots are attached, students receive a Telegram Album containing the images with their unique invite link and promo text as the caption. When students tap forward, all screenshots and the caption forward together!</i>"
+    )
+    await callback.message.answer(
+        "🖼️ <b>Promotional Screenshots Gallery</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"{details}",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+    )
+
+
+@router.callback_query(F.data == "admin_comp_upload_images_start")
+async def cb_admin_comp_upload_images_start(callback: CallbackQuery, state: FSMContext):
+    """Prompt admin to send up to 10 screenshots."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    await state.set_state(AdminCompState.waiting_for_promo_images)
+    await state.update_data(uploaded_images=[])
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Done Uploading (0)", callback_data="admin_comp_done_images")],
+            [InlineKeyboardButton(text="❌ Cancel", callback_data="admin_comp_manage_images")],
+        ]
+    )
+    await callback.message.answer(
+        "📸 <b>Send Promotional Screenshots (1 to 10 photos)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Please send the app screenshots (you can send them one by one or as an album, up to 10).\n\n"
+        "When you finish uploading, click <b>✅ Done Uploading</b>.\n\n"
+        "<i>Send /cancel to abort.</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.message(AdminCompState.waiting_for_promo_images, F.photo)
+async def msg_admin_comp_photo_upload(message: Message, state: FSMContext):
+    """Collect photo file_ids up to 10."""
+    if not is_admin(message.from_user.id):
+        return
+    import json
+
+    data = await state.get_data()
+    uploaded = data.get("uploaded_images", [])
+
+    if len(uploaded) >= 10:
+        await message.answer("⚠️ Maximum limit of 10 screenshots reached! Please tap ✅ Done Uploading.")
+        return
+
+    file_id = message.photo[-1].file_id
+    uploaded.append(file_id)
+    await state.update_data(uploaded_images=uploaded)
+
+    count = len(uploaded)
+    if count >= 10:
+        # Auto-save when 10 images reached
+        await db.update_active_competition_promo_images(json.dumps(uploaded))
+        await state.clear()
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 Back to Screenshots Menu", callback_data="admin_comp_manage_images")]
+            ]
+        )
+        await message.answer(
+            "🎉 <b>All 10 Screenshots Uploaded & Saved Successfully!</b>\n"
+            "Students requesting their invite links will now receive the 10-image promotional album with their referral link as the caption.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard,
+        )
+        return
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"✅ Done Uploading ({count}/10)", callback_data="admin_comp_done_images")],
+            [InlineKeyboardButton(text="❌ Cancel", callback_data="admin_comp_manage_images")],
+        ]
+    )
+    await message.answer(
+        f"📸 Screenshot <b>{count}/10</b> received!\nSend more photos or tap <b>✅ Done Uploading ({count}/10)</b>.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.callback_query(F.data == "admin_comp_done_images")
+async def cb_admin_comp_done_images(callback: CallbackQuery, state: FSMContext):
+    """Save collected images and exit upload state."""
+    if not is_admin(callback.from_user.id):
+        return
+    import json
+
+    data = await state.get_data()
+    uploaded = data.get("uploaded_images", [])
+
+    if not uploaded:
+        await callback.answer("⚠️ Please send at least 1 photo first!", show_alert=True)
+        return
+
+    await callback.answer("💾 Saving screenshots...")
+    await db.update_active_competition_promo_images(json.dumps(uploaded))
+    await state.clear()
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="👁️ Preview Screenshots Album", callback_data="admin_comp_preview_images")],
+            [InlineKeyboardButton(text="🔙 Back to Screenshots Menu", callback_data="admin_comp_manage_images")],
+        ]
+    )
+    await callback.message.answer(
+        f"🎉 <b>{len(uploaded)} Screenshot(s) Successfully Saved!</b>\n"
+        "The promotional album is now active for all students participating in the competition.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.callback_query(F.data == "admin_comp_preview_images")
+async def cb_admin_comp_preview_images(callback: CallbackQuery, bot: Bot):
+    """Preview the active competition's screenshots album as seen by students."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer("Loading preview...")
+
+    active_comp = await db.get_active_competition()
+    if not active_comp:
+        await callback.message.answer("⚠️ No active competition found.")
+        return
+
+    images = active_comp.get_promo_images()
+    if not images:
+        await callback.message.answer("ℹ️ No screenshots uploaded yet.")
+        return
+
+    sample_link = "https://t.me/FreshmanSuperBot?start=ref_12345678"
+    sample_caption = msg.format_promotional_post(sample_link, competition=active_comp, is_caption=True)
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Back to Screenshots Menu", callback_data="admin_comp_manage_images")]
+        ]
+    )
+
+    try:
+        if len(images) == 1:
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=images[0],
+                caption=sample_caption,
+                parse_mode=ParseMode.HTML,
+                reply_markup=keyboard,
+            )
+        else:
+            media = []
+            for i, fid in enumerate(images[:10]):
+                if i == 0:
+                    media.append(InputMediaPhoto(media=fid, caption=sample_caption, parse_mode=ParseMode.HTML))
+                else:
+                    media.append(InputMediaPhoto(media=fid))
+            await bot.send_media_group(chat_id=callback.message.chat.id, media=media)
+            await callback.message.answer(
+                "👆 <i>Above is the exact promotional album & caption students will forward!</i>",
+                parse_mode=ParseMode.HTML,
+                reply_markup=keyboard,
+            )
+    except Exception as err:
+        logger.warning(f"Error previewing promo images: {err}")
+        await callback.message.answer(f"⚠️ Could not preview album: {err}", reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "admin_comp_clear_images")
+async def cb_admin_comp_clear_images(callback: CallbackQuery):
+    """Remove all attached promotional screenshots."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer("🗑️ Screenshots cleared!", show_alert=True)
+    await db.update_active_competition_promo_images(None)
+    await cb_admin_comp_manage_images(callback)
 
 
 @router.callback_query(F.data == "admin_comp_edit_promo_start")

@@ -189,12 +189,37 @@ DEFAULT_PROMOTIONAL_POST_TEMPLATE = (
 )
 
 
-def format_promotional_post(invite_link: str, competition=None) -> str:
+# ── Ready-to-Forward Promotional Caption (For Photo / Media Album <= 1024 chars) ─
+DEFAULT_PROMOTIONAL_CAPTION_TEMPLATE = (
+    "✨ <b>ታላቅ የምስራች ለ2019 ዓ.ም የ Freshman ተማሪዎች!</b> 🎓\n"
+    "🚀 <b>FRESHMINDS ACADEMY IS HERE!</b>\n\n"
+    "የ 1ኛ ዓመት ኮርሶቻችሁን ከመጀመሪያው Chapter እስከ ፈተና ዝግጅት በአንድ ቦታ ይማሩ፣ ይለማመዱ እና እውቀታችሁን ይፈትሹ!\n\n"
+    "📱 <b>በ FreshMinds Mobile App ውስጥ ምን ያገኛሉ? 👇</b>\n"
+    "🎥 <b>1. Video Lessons:</b> በየChapter-ው የተደራጁ ቪዲዮዎች\n"
+    "📚 <b>2. Quality Notes:</b> ጥራት ያላቸው የኮርስ ኖቶች\n"
+    "📝 <b>3. Past Exams:</b> ያለፉ ዓመታት የፈተና ጥያቄዎች ከማብራሪያ ጋር\n"
+    "🏆 <b>4. Competitions:</b> የኮርስ ውድድሮች እና የሳምንቱ Leaderboard\n"
+    "📴 <b>5. Offline Mode:</b> ያለ ኢንተርኔት (Offline) የሚሰራ\n\n"
+    "━━━━━━━━━━━━━━━━━━\n"
+    "🤖 <b>STEP 1: JOIN OUR TELEGRAM CHANNEL</b>\n"
+    "👇 ከታች ባለው ሊንክ ቻናላችንን ይቀላቀሉ:\n"
+    "{invite_link}\n\n"
+    "📲 <b>STEP 2: DOWNLOAD OUR MOBILE APP</b>\n"
+    "👇 FreshMinds Mobile App-ን ከ Google Play ያውርዱ:\n"
+    "{app_store_url}\n"
+    "━━━━━━━━━━━━━━━━━━\n"
+    "❤️ ይህንን ዕድል ለጓደኞቻችሁም ያጋሩ!\n"
+    "🎓 <b>FreshMinds Academy – Your Key to Freshman Success!</b>"
+)
+
+
+def format_promotional_post(
+    invite_link: str, competition=None, is_caption: bool = False
+) -> str:
     """
     Complete, attractive promotional post that students can directly
     forward to Telegram groups, batch channels, or friends.
-    Uses custom promo template if set in active competition, otherwise defaults
-    to the rich FreshMinds Academy announcement copy.
+    If is_caption=True, returns a high-impact version safely within Telegram's 1024 character limit.
     """
     custom_template = (
         getattr(competition, "promo_post_template", None)
@@ -210,9 +235,20 @@ def format_promotional_post(invite_link: str, competition=None) -> str:
 
         if "{app_store_url}" in text:
             text = text.replace("{app_store_url}", APP_STORE_URL)
+
+        if is_caption and len(text) > 1024:
+            return DEFAULT_PROMOTIONAL_CAPTION_TEMPLATE.format(
+                invite_link=invite_link,
+                app_store_url=APP_STORE_URL,
+            )
         return text
 
-    return DEFAULT_PROMOTIONAL_POST_TEMPLATE.format(
+    template = (
+        DEFAULT_PROMOTIONAL_CAPTION_TEMPLATE
+        if is_caption
+        else DEFAULT_PROMOTIONAL_POST_TEMPLATE
+    )
+    return template.format(
         invite_link=invite_link,
         app_store_url=APP_STORE_URL,
     )
