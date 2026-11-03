@@ -1,0 +1,597 @@
+From b4f04cfa1cf1116da69c50374370d3c0693d7d9d Mon Sep 17 00:00:00 2001
+From: Sisayshimelash-collab <sisayshimelash@gmail.com>
+Date: Tue, 3 Nov 2026 06:13:46 +0300
+Subject: [PATCH 1/2] Fix NameError: import messages as msg in admin.py
+
+---
+ invite_bot/handlers/admin.py | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/invite_bot/handlers/admin.py b/invite_bot/handlers/admin.py
+index 9efe2e7..53db0ff 100644
+--- a/invite_bot/handlers/admin.py
++++ b/invite_bot/handlers/admin.py
+@@ -15,6 +15,7 @@ from aiogram.fsm.state import State, StatesGroup
+ from aiogram.fsm.context import FSMContext
+ from database import db
+ from config import ADMIN_IDS
++import messages as msg
+ 
+ logger = logging.getLogger(__name__)
+ router = Router()
+-- 
+2.43.0
+
+
+From 1f44cb6549ef6872c84fdf49d3f667ef31e649cb Mon Sep 17 00:00:00 2001
+From: Sisayshimelash-collab <sisayshimelash@gmail.com>
+Date: Tue, 3 Nov 2026 06:33:58 +0300
+Subject: [PATCH 2/2] Add promotional screenshot gallery supporting up to 10
+ photos forwarded as an album
+
+---
+ invite_bot/database.py        |  54 +++++++-
+ invite_bot/handlers/admin.py  | 246 ++++++++++++++++++++++++++++++++++
+ invite_bot/handlers/invite.py |  52 ++++++-
+ invite_bot/messages.py        |  44 +++++-
+ 4 files changed, 380 insertions(+), 16 deletions(-)
+
+diff --git a/invite_bot/database.py b/invite_bot/database.py
+index 91e6bc5..1712b95 100644
+--- a/invite_bot/database.py
++++ b/invite_bot/database.py
+@@ -66,6 +66,18 @@ class CompetitionRecord(NamedTuple):
+     is_active: int
+     created_at: str
+     promo_post_template: Optional[str] = None
++    promo_images_json: Optional[str] = None
++
++    def get_promo_images(self) -> list[str]:
++        """Returns list of Telegram file_ids for promotional screenshots."""
++        if not self.promo_images_json:
++            return []
++        try:
++            import json
++            data = json.loads(self.promo_images_json)
++            return [str(x) for x in data if x] if isinstance(data, list) else []
++        except Exception:
++            return []
+ 
+ 
+ class PlacementCacheRecord(NamedTuple):
+@@ -283,16 +295,21 @@ class Database:
+                     prizes_text TEXT NOT NULL,
+                     end_date_str TEXT NOT NULL,
+                     promo_post_template TEXT,
++                    promo_images_json TEXT,
+                     is_active INTEGER DEFAULT 1,
+                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                 );
+             """)
+ 
+-            # Ensure promo_post_template column exists if table was created previously
++            # Ensure columns exist if table was created previously
+             try:
+                 await db.execute("ALTER TABLE competitions ADD COLUMN promo_post_template TEXT;")
+             except Exception:
+                 pass
++            try:
++                await db.execute("ALTER TABLE competitions ADD COLUMN promo_images_json TEXT;")
++            except Exception:
++                pass
+ 
+             # Seed default competition if empty
+             cursor = await db.execute("SELECT COUNT(*) FROM competitions")
+@@ -919,7 +936,7 @@ class Database:
+             db.row_factory = aiosqlite.Row
+             cursor = await db.execute(
+                 """
+-                SELECT id, title, prizes_text, end_date_str, is_active, created_at, promo_post_template
++                SELECT id, title, prizes_text, end_date_str, is_active, created_at, promo_post_template, promo_images_json
+                 FROM competitions
+                 WHERE is_active = 1
+                 ORDER BY id DESC
+@@ -936,6 +953,7 @@ class Database:
+                     is_active=row["is_active"],
+                     created_at=row["created_at"],
+                     promo_post_template=row["promo_post_template"] if "promo_post_template" in row.keys() else None,
++                    promo_images_json=row["promo_images_json"] if "promo_images_json" in row.keys() else None,
+                 )
+             return None
+ 
+@@ -945,6 +963,7 @@ class Database:
+         prizes_text: str,
+         end_date_str: str,
+         promo_post_template: Optional[str] = None,
++        promo_images_json: Optional[str] = None,
+     ) -> int:
+         """Create a new active competition, deactivating any existing active ones and clearing active referrals."""
+         async with aiosqlite.connect(self.db_path) as db:
+@@ -958,12 +977,17 @@ class Database:
+                 if promo_post_template and promo_post_template.strip()
+                 else None
+             )
++            clean_images = (
++                promo_images_json.strip()
++                if promo_images_json and promo_images_json.strip()
++                else None
++            )
+             cursor = await db.execute(
+                 """
+-                INSERT INTO competitions (title, prizes_text, end_date_str, promo_post_template, is_active)
+-                VALUES (?, ?, ?, ?, 1)
++                INSERT INTO competitions (title, prizes_text, end_date_str, promo_post_template, promo_images_json, is_active)
++                VALUES (?, ?, ?, ?, ?, 1)
+                 """,
+-                (title.strip(), prizes_text.strip(), end_date_str.strip(), clean_promo),
++                (title.strip(), prizes_text.strip(), end_date_str.strip(), clean_promo, clean_images),
+             )
+             await db.commit()
+             return cursor.lastrowid
+@@ -985,6 +1009,23 @@ class Database:
+             await db.commit()
+             return cursor.rowcount > 0
+ 
++    async def update_active_competition_promo_images(
++        self, promo_images_json: Optional[str]
++    ) -> bool:
++        """Update promotional screenshot images (JSON list of file_ids) for active competition."""
++        async with aiosqlite.connect(self.db_path) as db:
++            clean_images = (
++                promo_images_json.strip()
++                if promo_images_json and promo_images_json.strip()
++                else None
++            )
++            cursor = await db.execute(
++                "UPDATE competitions SET promo_images_json = ? WHERE is_active = 1",
++                (clean_images,),
++            )
++            await db.commit()
++            return cursor.rowcount > 0
++
+     async def end_active_competition(
+         self, cycle_name: Optional[str] = None
+     ) -> list[LeaderboardEntry]:
+@@ -1026,7 +1067,7 @@ class Database:
+             db.row_factory = aiosqlite.Row
+             cursor = await db.execute(
+                 """
+-                SELECT id, title, prizes_text, end_date_str, is_active, created_at, promo_post_template
++                SELECT id, title, prizes_text, end_date_str, is_active, created_at, promo_post_template, promo_images_json
+                 FROM competitions
+                 ORDER BY id DESC
+                 """
+@@ -1041,6 +1082,7 @@ class Database:
+                     is_active=r["is_active"],
+                     created_at=r["created_at"],
+                     promo_post_template=r["promo_post_template"] if "promo_post_template" in r.keys() else None,
++                    promo_images_json=r["promo_images_json"] if "promo_images_json" in r.keys() else None,
+                 )
+                 for r in rows
+             ]
+diff --git a/invite_bot/handlers/admin.py b/invite_bot/handlers/admin.py
+index 53db0ff..81ace16 100644
+--- a/invite_bot/handlers/admin.py
++++ b/invite_bot/handlers/admin.py
+@@ -9,6 +9,7 @@ from aiogram.types import (
+     CallbackQuery,
+     InlineKeyboardMarkup,
+     InlineKeyboardButton,
++    InputMediaPhoto,
+ )
+ from aiogram.enums import ParseMode
+ from aiogram.fsm.state import State, StatesGroup
+@@ -65,6 +66,7 @@ class AdminCompState(StatesGroup):
+     waiting_for_end_date = State()
+     waiting_for_promo_post = State()
+     waiting_for_edit_promo = State()
++    waiting_for_promo_images = State()
+ 
+ 
+ class AdminCampusCallState(StatesGroup):
+@@ -2076,6 +2078,7 @@ async def cb_admin_comp_create(callback: CallbackQuery, state: FSMContext):
+ @router.message(AdminCompState.waiting_for_end_date, Command("cancel"))
+ @router.message(AdminCompState.waiting_for_promo_post, Command("cancel"))
+ @router.message(AdminCompState.waiting_for_edit_promo, Command("cancel"))
++@router.message(AdminCompState.waiting_for_promo_images, Command("cancel"))
+ async def cmd_cancel_comp(message: Message, state: FSMContext):
+     """Cancel competition creation."""
+     await state.clear()
+@@ -2332,7 +2335,21 @@ async def cb_admin_comp_promo_view(callback: CallbackQuery, state: FSMContext =
+         else "✨ <b>Default Rich Template Active</b>"
+     )
+ 
++    promo_images = active_comp.get_promo_images()
++    images_count = len(promo_images)
++    images_label = (
++        f"🖼️ <b>Screenshots Attached:</b> {images_count}/10 (Media Album Mode)"
++        if images_count > 0
++        else "🖼️ <b>Screenshots Attached:</b> 0/10 (Text-Only Mode)"
++    )
++
+     keyboard = [
++        [
++            InlineKeyboardButton(
++                text=f"🖼️ Manage Screenshots ({images_count}/10)",
++                callback_data="admin_comp_manage_images",
++            )
++        ],
+         [
+             InlineKeyboardButton(
+                 text="✏️ Change / Write Custom Post",
+@@ -2355,6 +2372,7 @@ async def cb_admin_comp_promo_view(callback: CallbackQuery, state: FSMContext =
+ 
+     await callback.message.answer(
+         f"📢 <b>Promotional Post Preview</b> ({status_label}):\n"
++        f"{images_label}\n"
+         "━━━━━━━━━━━━━━━━━━━━\n"
+         f"{preview_text}\n"
+         "━━━━━━━━━━━━━━━━━━━━",
+@@ -2364,6 +2382,234 @@ async def cb_admin_comp_promo_view(callback: CallbackQuery, state: FSMContext =
+     )
+ 
+ 
++@router.callback_query(F.data == "admin_comp_manage_images")
++async def cb_admin_comp_manage_images(callback: CallbackQuery, state: FSMContext = None):
++    """Screenshot images management menu."""
++    if not is_admin(callback.from_user.id):
++        return
++    if state:
++        await state.clear()
++    await callback.answer()
++
++    active_comp = await db.get_active_competition()
++    if not active_comp:
++        await callback.message.answer("⚠️ No active competition found.")
++        return
++
++    images = active_comp.get_promo_images()
++    count = len(images)
++
++    keyboard = [
++        [
++            InlineKeyboardButton(
++                text=f"➕ Upload / Replace Screenshots ({count}/10)",
++                callback_data="admin_comp_upload_images_start",
++            )
++        ]
++    ]
++    if count > 0:
++        keyboard.append([
++            InlineKeyboardButton(
++                text="👁️ Preview Screenshots Album",
++                callback_data="admin_comp_preview_images",
++            )
++        ])
++        keyboard.append([
++            InlineKeyboardButton(
++                text="🗑️ Remove All Screenshots",
++                callback_data="admin_comp_clear_images",
++            )
++        ])
++    keyboard.append([
++        InlineKeyboardButton(
++            text="🔙 Back to Promo Preview",
++            callback_data="admin_comp_promo_view",
++        )
++    ])
++
++    details = (
++        f"🖼️ <b>Current Status:</b> {count}/10 images configured.\n\n"
++        "💡 <i>When screenshots are attached, students receive a Telegram Album containing the images with their unique invite link and promo text as the caption. When students tap forward, all screenshots and the caption forward together!</i>"
++    )
++    await callback.message.answer(
++        "🖼️ <b>Promotional Screenshots Gallery</b>\n"
++        "━━━━━━━━━━━━━━━━━━━━\n"
++        f"{details}",
++        parse_mode=ParseMode.HTML,
++        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
++    )
++
++
++@router.callback_query(F.data == "admin_comp_upload_images_start")
++async def cb_admin_comp_upload_images_start(callback: CallbackQuery, state: FSMContext):
++    """Prompt admin to send up to 10 screenshots."""
++    if not is_admin(callback.from_user.id):
++        return
++    await callback.answer()
++    await state.set_state(AdminCompState.waiting_for_promo_images)
++    await state.update_data(uploaded_images=[])
++
++    keyboard = InlineKeyboardMarkup(
++        inline_keyboard=[
++            [InlineKeyboardButton(text="✅ Done Uploading (0)", callback_data="admin_comp_done_images")],
++            [InlineKeyboardButton(text="❌ Cancel", callback_data="admin_comp_manage_images")],
++        ]
++    )
++    await callback.message.answer(
++        "📸 <b>Send Promotional Screenshots (1 to 10 photos)</b>\n"
++        "━━━━━━━━━━━━━━━━━━━━\n"
++        "Please send the app screenshots (you can send them one by one or as an album, up to 10).\n\n"
++        "When you finish uploading, click <b>✅ Done Uploading</b>.\n\n"
++        "<i>Send /cancel to abort.</i>",
++        parse_mode=ParseMode.HTML,
++        reply_markup=keyboard,
++    )
++
++
++@router.message(AdminCompState.waiting_for_promo_images, F.photo)
++async def msg_admin_comp_photo_upload(message: Message, state: FSMContext):
++    """Collect photo file_ids up to 10."""
++    if not is_admin(message.from_user.id):
++        return
++    import json
++
++    data = await state.get_data()
++    uploaded = data.get("uploaded_images", [])
++
++    if len(uploaded) >= 10:
++        await message.answer("⚠️ Maximum limit of 10 screenshots reached! Please tap ✅ Done Uploading.")
++        return
++
++    file_id = message.photo[-1].file_id
++    uploaded.append(file_id)
++    await state.update_data(uploaded_images=uploaded)
++
++    count = len(uploaded)
++    if count >= 10:
++        # Auto-save when 10 images reached
++        await db.update_active_competition_promo_images(json.dumps(uploaded))
++        await state.clear()
++        keyboard = InlineKeyboardMarkup(
++            inline_keyboard=[
++                [InlineKeyboardButton(text="🔙 Back to Screenshots Menu", callback_data="admin_comp_manage_images")]
++            ]
++        )
++        await message.answer(
++            "🎉 <b>All 10 Screenshots Uploaded & Saved Successfully!</b>\n"
++            "Students requesting their invite links will now receive the 10-image promotional album with their referral link as the caption.",
++            parse_mode=ParseMode.HTML,
++            reply_markup=keyboard,
++        )
++        return
++
++    keyboard = InlineKeyboardMarkup(
++        inline_keyboard=[
++            [InlineKeyboardButton(text=f"✅ Done Uploading ({count}/10)", callback_data="admin_comp_done_images")],
++            [InlineKeyboardButton(text="❌ Cancel", callback_data="admin_comp_manage_images")],
++        ]
++    )
++    await message.answer(
++        f"📸 Screenshot <b>{count}/10</b> received!\nSend more photos or tap <b>✅ Done Uploading ({count}/10)</b>.",
++        parse_mode=ParseMode.HTML,
++        reply_markup=keyboard,
++    )
++
++
++@router.callback_query(F.data == "admin_comp_done_images")
++async def cb_admin_comp_done_images(callback: CallbackQuery, state: FSMContext):
++    """Save collected images and exit upload state."""
++    if not is_admin(callback.from_user.id):
++        return
++    import json
++
++    data = await state.get_data()
++    uploaded = data.get("uploaded_images", [])
++
++    if not uploaded:
++        await callback.answer("⚠️ Please send at least 1 photo first!", show_alert=True)
++        return
++
++    await callback.answer("💾 Saving screenshots...")
++    await db.update_active_competition_promo_images(json.dumps(uploaded))
++    await state.clear()
++
++    keyboard = InlineKeyboardMarkup(
++        inline_keyboard=[
++            [InlineKeyboardButton(text="👁️ Preview Screenshots Album", callback_data="admin_comp_preview_images")],
++            [InlineKeyboardButton(text="🔙 Back to Screenshots Menu", callback_data="admin_comp_manage_images")],
++        ]
++    )
++    await callback.message.answer(
++        f"🎉 <b>{len(uploaded)} Screenshot(s) Successfully Saved!</b>\n"
++        "The promotional album is now active for all students participating in the competition.",
++        parse_mode=ParseMode.HTML,
++        reply_markup=keyboard,
++    )
++
++
++@router.callback_query(F.data == "admin_comp_preview_images")
++async def cb_admin_comp_preview_images(callback: CallbackQuery, bot: Bot):
++    """Preview the active competition's screenshots album as seen by students."""
++    if not is_admin(callback.from_user.id):
++        return
++    await callback.answer("Loading preview...")
++
++    active_comp = await db.get_active_competition()
++    if not active_comp:
++        await callback.message.answer("⚠️ No active competition found.")
++        return
++
++    images = active_comp.get_promo_images()
++    if not images:
++        await callback.message.answer("ℹ️ No screenshots uploaded yet.")
++        return
++
++    sample_link = "https://t.me/FreshmanSuperBot?start=ref_12345678"
++    sample_caption = msg.format_promotional_post(sample_link, competition=active_comp, is_caption=True)
++
++    keyboard = InlineKeyboardMarkup(
++        inline_keyboard=[
++            [InlineKeyboardButton(text="🔙 Back to Screenshots Menu", callback_data="admin_comp_manage_images")]
++        ]
++    )
++
++    try:
++        if len(images) == 1:
++            await bot.send_photo(
++                chat_id=callback.message.chat.id,
++                photo=images[0],
++                caption=sample_caption,
++                parse_mode=ParseMode.HTML,
++                reply_markup=keyboard,
++            )
++        else:
++            media = []
++            for i, fid in enumerate(images[:10]):
++                if i == 0:
++                    media.append(InputMediaPhoto(media=fid, caption=sample_caption, parse_mode=ParseMode.HTML))
++                else:
++                    media.append(InputMediaPhoto(media=fid))
++            await bot.send_media_group(chat_id=callback.message.chat.id, media=media)
++            await callback.message.answer(
++                "👆 <i>Above is the exact promotional album & caption students will forward!</i>",
++                parse_mode=ParseMode.HTML,
++                reply_markup=keyboard,
++            )
++    except Exception as err:
++        logger.warning(f"Error previewing promo images: {err}")
++        await callback.message.answer(f"⚠️ Could not preview album: {err}", reply_markup=keyboard)
++
++
++@router.callback_query(F.data == "admin_comp_clear_images")
++async def cb_admin_comp_clear_images(callback: CallbackQuery):
++    """Remove all attached promotional screenshots."""
++    if not is_admin(callback.from_user.id):
++        return
++    await callback.answer("🗑️ Screenshots cleared!", show_alert=True)
++    await db.update_active_competition_promo_images(None)
++    await cb_admin_comp_manage_images(callback)
++
++
+ @router.callback_query(F.data == "admin_comp_edit_promo_start")
+ async def cb_admin_comp_edit_promo_start(callback: CallbackQuery, state: FSMContext):
+     """Prompt admin to enter new promo post for active competition."""
+diff --git a/invite_bot/handlers/invite.py b/invite_bot/handlers/invite.py
+index 553ce65..4861f34 100644
+--- a/invite_bot/handlers/invite.py
++++ b/invite_bot/handlers/invite.py
+@@ -79,12 +79,52 @@ async def generate_and_send_link(target: Message | CallbackQuery, bot: Bot, user
+ 
+     chat_id = target.chat.id if isinstance(target, Message) else target.message.chat.id
+ 
+-    await bot.send_message(
+-        chat_id=chat_id,
+-        text=promo_post,
+-        parse_mode=ParseMode.HTML,
+-        disable_web_page_preview=True,
+-    )
++    # Check for promotional screenshots (up to 10 images sent as an album)
++    promo_images = comp.get_promo_images() if comp else []
++
++    if promo_images:
++        promo_caption = msg.format_promotional_post(
++            invite_link, competition=comp, is_caption=True
++        )
++        try:
++            if len(promo_images) == 1:
++                await bot.send_photo(
++                    chat_id=chat_id,
++                    photo=promo_images[0],
++                    caption=promo_caption,
++                    parse_mode=ParseMode.HTML,
++                )
++            else:
++                from aiogram.types import InputMediaPhoto
++
++                media = []
++                for i, file_id in enumerate(promo_images[:10]):
++                    if i == 0:
++                        media.append(
++                            InputMediaPhoto(
++                                media=file_id,
++                                caption=promo_caption,
++                                parse_mode=ParseMode.HTML,
++                            )
++                        )
++                    else:
++                        media.append(InputMediaPhoto(media=file_id))
++                await bot.send_media_group(chat_id=chat_id, media=media)
++        except Exception as err:
++            logger.warning(f"Could not send promo screenshots album: {err}")
++            await bot.send_message(
++                chat_id=chat_id,
++                text=promo_post,
++                parse_mode=ParseMode.HTML,
++                disable_web_page_preview=True,
++            )
++    else:
++        await bot.send_message(
++            chat_id=chat_id,
++            text=promo_post,
++            parse_mode=ParseMode.HTML,
++            disable_web_page_preview=True,
++        )
+ 
+     try:
+         from aiogram.types import FSInputFile
+diff --git a/invite_bot/messages.py b/invite_bot/messages.py
+index 3e24fa7..17eef82 100644
+--- a/invite_bot/messages.py
++++ b/invite_bot/messages.py
+@@ -189,12 +189,37 @@ DEFAULT_PROMOTIONAL_POST_TEMPLATE = (
+ )
+ 
+ 
+-def format_promotional_post(invite_link: str, competition=None) -> str:
++# ── Ready-to-Forward Promotional Caption (For Photo / Media Album <= 1024 chars) ─
++DEFAULT_PROMOTIONAL_CAPTION_TEMPLATE = (
++    "✨ <b>ታላቅ የምስራች ለ2019 ዓ.ም የ Freshman ተማሪዎች!</b> 🎓\n"
++    "🚀 <b>FRESHMINDS ACADEMY IS HERE!</b>\n\n"
++    "የ 1ኛ ዓመት ኮርሶቻችሁን ከመጀመሪያው Chapter እስከ ፈተና ዝግጅት በአንድ ቦታ ይማሩ፣ ይለማመዱ እና እውቀታችሁን ይፈትሹ!\n\n"
++    "📱 <b>በ FreshMinds Mobile App ውስጥ ምን ያገኛሉ? 👇</b>\n"
++    "🎥 <b>1. Video Lessons:</b> በየChapter-ው የተደራጁ ቪዲዮዎች\n"
++    "📚 <b>2. Quality Notes:</b> ጥራት ያላቸው የኮርስ ኖቶች\n"
++    "📝 <b>3. Past Exams:</b> ያለፉ ዓመታት የፈተና ጥያቄዎች ከማብራሪያ ጋር\n"
++    "🏆 <b>4. Competitions:</b> የኮርስ ውድድሮች እና የሳምንቱ Leaderboard\n"
++    "📴 <b>5. Offline Mode:</b> ያለ ኢንተርኔት (Offline) የሚሰራ\n\n"
++    "━━━━━━━━━━━━━━━━━━\n"
++    "🤖 <b>STEP 1: JOIN OUR TELEGRAM CHANNEL</b>\n"
++    "👇 ከታች ባለው ሊንክ ቻናላችንን ይቀላቀሉ:\n"
++    "{invite_link}\n\n"
++    "📲 <b>STEP 2: DOWNLOAD OUR MOBILE APP</b>\n"
++    "👇 FreshMinds Mobile App-ን ከ Google Play ያውርዱ:\n"
++    "{app_store_url}\n"
++    "━━━━━━━━━━━━━━━━━━\n"
++    "❤️ ይህንን ዕድል ለጓደኞቻችሁም ያጋሩ!\n"
++    "🎓 <b>FreshMinds Academy – Your Key to Freshman Success!</b>"
++)
++
++
++def format_promotional_post(
++    invite_link: str, competition=None, is_caption: bool = False
++) -> str:
+     """
+     Complete, attractive promotional post that students can directly
+     forward to Telegram groups, batch channels, or friends.
+-    Uses custom promo template if set in active competition, otherwise defaults
+-    to the rich FreshMinds Academy announcement copy.
++    If is_caption=True, returns a high-impact version safely within Telegram's 1024 character limit.
+     """
+     custom_template = (
+         getattr(competition, "promo_post_template", None)
+@@ -210,9 +235,20 @@ def format_promotional_post(invite_link: str, competition=None) -> str:
+ 
+         if "{app_store_url}" in text:
+             text = text.replace("{app_store_url}", APP_STORE_URL)
++
++        if is_caption and len(text) > 1024:
++            return DEFAULT_PROMOTIONAL_CAPTION_TEMPLATE.format(
++                invite_link=invite_link,
++                app_store_url=APP_STORE_URL,
++            )
+         return text
+ 
+-    return DEFAULT_PROMOTIONAL_POST_TEMPLATE.format(
++    template = (
++        DEFAULT_PROMOTIONAL_CAPTION_TEMPLATE
++        if is_caption
++        else DEFAULT_PROMOTIONAL_POST_TEMPLATE
++    )
++    return template.format(
+         invite_link=invite_link,
+         app_store_url=APP_STORE_URL,
+     )
+-- 
+2.43.0
+
