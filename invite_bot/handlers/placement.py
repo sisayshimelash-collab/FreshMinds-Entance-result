@@ -20,7 +20,7 @@ from aiogram.types import (
 from aiogram.enums import ParseMode, ChatAction
 
 from database import db
-from config import TARGET_CHANNEL
+from config import TARGET_CHANNEL, APP_STORE_URL
 from placement_client import placement_client
 from handlers.utils import check_and_credit_membership, send_feature_lock_message
 import messages as msg
@@ -70,7 +70,15 @@ async def build_placement_result_keyboard(university_name: str) -> InlineKeyboar
         )
     ])
 
-    # 3. Quick re-check button
+    # 3. FreshMinds Mobile App download link
+    buttons.append([
+        InlineKeyboardButton(
+            text="📱 FreshMinds App አውርድ (Google Play)",
+            url=APP_STORE_URL,
+        )
+    ])
+
+    # 4. Quick re-check button
     buttons.append([
         InlineKeyboardButton(
             text="🔄 ሌላ ቁጥር ለመፈለግ (Check Another)",

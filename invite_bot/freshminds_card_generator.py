@@ -282,7 +282,7 @@ def generate_gpa_report_card_image(
     # Footer Watermark Banner
     draw.rectangle([(70, 1180), (width - 70, 1290)], fill=(30, 41, 59, 200), outline=(251, 191, 36, 200), width=3)
     draw.text((100, 1202), "🎓 FRESHMINDS ACADEMY — @FreshMinds_Academy", font=footer_font, fill=(251, 191, 36))
-    draw.text((100, 1244), "Join Telegram Channel for Freshman Courses & Mobile App", font=sub_font, fill=(248, 250, 252))
+    draw.text((100, 1244), "Get Mobile App on Google Play | Join Telegram @FreshMinds_Academy", font=sub_font, fill=(248, 250, 252))
 
     img = _apply_watermark_overlay(img)
 
@@ -354,7 +354,7 @@ def generate_stats_card_image(
     # Footer Watermark Banner
     draw.rectangle([(70, 1180), (width - 70, 1290)], fill=(30, 41, 59, 200), outline=(251, 191, 36, 200), width=3)
     draw.text((100, 1202), "🎓 FRESHMINDS ACADEMY — @FreshMinds_Academy", font=footer_font, fill=(251, 191, 36))
-    draw.text((100, 1244), "Join Telegram Channel for Freshman Courses & Mobile App", font=sub_font, fill=(248, 250, 252))
+    draw.text((100, 1244), "Get Mobile App on Google Play | Join Telegram @FreshMinds_Academy", font=sub_font, fill=(248, 250, 252))
 
     img = _apply_watermark_overlay(img)
 
@@ -480,7 +480,7 @@ def generate_invite_card_image(
     benefits = [
         "🎁 1. Invite 1st year freshman students to earn competition points.",
         "📚 2. Unlock free university modules, exam models & tutorials.",
-        "📱 3. Get early VIP beta access to FreshMinds Freshman App!",
+        "📱 3. Download official FreshMinds App on Google Play Store!",
     ]
     draw.text((110, curr_y), "🌟 WHY SHARE THIS BOT?", font=name_font, fill=(251, 191, 36))
     curr_y += 55
@@ -491,7 +491,7 @@ def generate_invite_card_image(
     # Footer Watermark Banner
     draw.rectangle([(70, 1180), (width - 70, 1290)], fill=(30, 41, 59, 200), outline=(251, 191, 36, 200), width=3)
     draw.text((100, 1202), "🎓 FRESHMINDS ACADEMY — @FreshMinds_Academy", font=footer_font, fill=(251, 191, 36))
-    draw.text((100, 1244), "Join Telegram Channel for Freshman Courses & Mobile App", font=sub_font, fill=(248, 250, 252))
+    draw.text((100, 1244), "Get Mobile App on Google Play | Join Telegram @FreshMinds_Academy", font=sub_font, fill=(248, 250, 252))
 
     img = _apply_watermark_overlay(img)
 
@@ -553,7 +553,7 @@ def generate_resources_card_image(
     # Footer Watermark Banner
     draw.rectangle([(70, 1180), (width - 70, 1290)], fill=(30, 41, 59, 200), outline=(251, 191, 36, 200), width=3)
     draw.text((100, 1202), "🎓 FRESHMINDS ACADEMY — @FreshMinds_Academy", font=footer_font, fill=(251, 191, 36))
-    draw.text((100, 1244), "Join Telegram Channel for Freshman Courses & Mobile App", font=sub_font, fill=(248, 250, 252))
+    draw.text((100, 1244), "Get Mobile App on Google Play | Join Telegram @FreshMinds_Academy", font=sub_font, fill=(248, 250, 252))
 
     img = _apply_watermark_overlay(img)
 

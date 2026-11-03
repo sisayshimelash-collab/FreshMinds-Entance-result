@@ -14,7 +14,7 @@ from aiogram.types import (
 )
 from aiogram.enums import ParseMode
 from database import db
-from config import TARGET_CHANNEL
+from config import TARGET_CHANNEL, APP_STORE_URL
 from handlers.utils import (
     check_channel_membership,
     check_and_credit_membership,
@@ -38,8 +38,9 @@ CATEGORY_NAMES = {
 
 
 def build_courses_keyboard(courses: list) -> InlineKeyboardMarkup:
-    """Builds keyboard grid of all available courses + AI Quiz entry button."""
+    """Builds keyboard grid of all available courses + AI Quiz entry button + Mobile App."""
     keyboard = [
+        [InlineKeyboardButton(text="📱 FreshMinds App አውርድ (Google Play)", url=APP_STORE_URL)],
         [InlineKeyboardButton(text="🧪 Interactive AI Quiz (በነፃ ፈትን)", callback_data="aiq_menu")]
     ]
     row = []

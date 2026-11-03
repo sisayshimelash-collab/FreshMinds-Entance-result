@@ -46,5 +46,11 @@ PRIZE_2ND: str = os.getenv("PRIZE_2ND", "የ Freshman VIP ኮርሶች")
 PRIZE_3RD: str = os.getenv("PRIZE_3RD", "የ 100 ብር ሞባይል ካርድ")
 PRIZE_4TH: str = os.getenv("PRIZE_4TH", "የ 50 ብር ሞባይል ካርድ")
 
+# FreshMinds Mobile App (Google Play)
+APP_STORE_URL: str = os.getenv(
+    "APP_STORE_URL",
+    "https://play.google.com/store/apps/details?id=com.freshminds.mobile",
+)
+
 # Database Path
 DB_PATH: Path = Path(__file__).resolve().parent / "invite_competition.db"

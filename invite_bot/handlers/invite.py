@@ -23,7 +23,7 @@ router = Router()
 def get_share_keyboard(invite_link: str) -> InlineKeyboardMarkup:
     """Inline button that opens Telegram share picker with pre-filled promotional message."""
     share_text = (
-        "🎓 ለ 2019 ዓ.ም የ Freshman ተማሪዎች በሙሉ! ነፃ የቪዲዮ ኮርሶች እና የፈተና ሞዴሎች በ FreshMinds Academy ያግኙ። አሁኑኑ ይቀላቀሉ👇"
+        "🎓 ለ 2019 ዓ.ም የ Freshman ተማሪዎች በሙሉ! የ FreshMinds Academy Mobile App እና የቴሌግራም ቻናልን አሁኑኑ ይቀላቀሉ👇"
     )
     encoded_text = urllib.parse.quote(share_text)
     encoded_url = urllib.parse.quote(invite_link)
@@ -74,7 +74,7 @@ async def generate_and_send_link(target: Message | CallbackQuery, bot: Bot, user
 
 
     # 3. Send Ready-to-Forward Promotional Marketing Post
-    promo_post = msg.format_promotional_post(invite_link)
+    promo_post = msg.format_promotional_post(invite_link, competition=comp)
     link_card = msg.format_link_card(invite_link)
 
     chat_id = target.chat.id if isinstance(target, Message) else target.message.chat.id

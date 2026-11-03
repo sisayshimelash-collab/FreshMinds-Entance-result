@@ -10,6 +10,7 @@ from config import (
     PRIZE_2ND,
     PRIZE_3RD,
     PRIZE_4TH,
+    APP_STORE_URL,
 )
 
 # ── Main Menu Keyboard Labels ────────────────────────────────────────────────
@@ -56,6 +57,7 @@ def format_welcome_text(competition=None) -> str:
         "📚 <b>የኮርስ ማቴሪያሎች:</b> የ 1ኛ አመት ሞጁሎች፣ የማጠቃለያ ኖቶችና ያለፉ ፈተናዎች\n"
         "🏛️ <b>የዩኒቨርሲቲዎች መረጃ:</b> የኢትዮጵያ ዩኒቨርሲቲዎች አጠቃላይ መረጃና የካምፓስ ህይወት\n"
         "🧮 <b>GPA ማስያ:</b> የ 1st Semester ውጤት በቀላሉ የሚያሰሉበት ልዩ ካልኩሌተር\n"
+        f"📱 <b>FreshMinds Mobile App:</b> <a href=\"{APP_STORE_URL}\">ከ Google Play ያውርዱ (Download App)</a>\n\n"
         f"{comp_bullet}"
         "👇 <b>ከታች ካሉት አማራጮች የሚፈልጉትን ይምረጡ:</b>"
     )
@@ -148,23 +150,71 @@ def format_gpa_result_card(gpa: float, total_ch: int, total_pts: float, breakdow
     return "\n".join(lines)
 
 
-# ── Ready-to-Forward Promotional Marketing Post ──────────────────────────────
-def format_promotional_post(invite_link: str) -> str:
+# ── Ready-to-Forward Promotional Marketing Post Template ─────────────────────
+DEFAULT_PROMOTIONAL_POST_TEMPLATE = (
+    "✨ <b>ታላቅ የምስራች ለ2019 ዓ.ም የዩኒቨርሲቲ FRESHMAN ተማሪዎች!</b> 🎓\n\n"
+    "🚀 <b>FRESHMINDS ACADEMY IS HERE!</b>\n\n"
+    "የUniversity Freshman የትምህርት ሕይወት አዲስ ጉዞ ነው። አዲስ Courses፣ አዳዲስ ርዕሶች፣ Assignments እና ፈተናዎች... ይህን ሁሉ በተሻለ ሁኔታ ለመቋቋም ጥሩ ዝግጅት ያስፈልጋል!\n\n"
+    "ባለፈው ዓመት በTelegram እና YouTube ቻናሎቻችን በሰጠናቸው ነፃ Tutorials፣ የትምህርት ማብራሪያዎችና ተጨማሪ እገዛዎች በርካታ ተማሪዎችን የረዳው <b>FreshMinds Academy</b> አሁን ደግሞ በራሱ Mobile App አገልግሎቱን ወደ አዲስ ደረጃ አሳድጓል!\n\n"
+    "━━━━━━━━━━━━━━━━━━\n\n"
+    "📱 <b>MEET THE FRESHMINDS ACADEMY MOBILE APP</b>\n\n"
+    "የFreshman ኮርሶቻችሁን ከመጀመሪያው Chapter እስከ ፈተና ዝግጅት ድረስ በአንድ ቦታ ይማሩ፣ ይለማመዱ እና እውቀታችሁን ይፈትሹ!\n\n"
+    "<b>በApp-ው ውስጥ ምን ያገኛሉ? 👇</b>\n\n"
+    "🎥 <b>1. VIDEO LESSONS</b>\n"
+    "በየChapter-ው የተደራጁ የቪዲዮ ትምህርቶችን በመመልከት ኮርሶቻችሁን በቀላሉ ይረዱ።\n\n"
+    "📚 <b>2. QUALITY CHAPTER NOTES</b>\n"
+    "በየChapter-ው የተዘጋጁ ጥራት ያላቸው Notes በመጠቀም ትምህርታችሁን ያጠናክሩ።\n\n"
+    "📝 <b>3. QUESTIONS & PAST EXAMS</b>\n"
+    "የChapter Practice Questions እና ያለፉ ዓመታት የዩኒቨርሲቲ ፈተና ጥያቄዎችን ከማብራሪያዎች ጋር በመጠቀም ለፈተና ይዘጋጁ።\n\n"
+    "🏆 <b>4. COURSE COMPETITIONS & LEADERBOARD</b>\n"
+    "በየCourse-ው በሚዘጋጁ ውድድሮች ይሳተፉ፣ እውቀታችሁን ይፈትሹ፣ Points ያግኙ እና ከሌሎች ተማሪዎች ጋር ይወዳደሩ!\n\n"
+    "📴 <b>5. OFFLINE LEARNING</b>\n"
+    "አንዴ ያወረዷቸውን የትምህርት ይዘቶች Internet በሌለበት ጊዜም መጠቀም ይችላሉ።\n\n"
+    "━━━━━━━━━━━━━━━━━━\n\n"
+    "🔥 <b>WHY FRESHMINDS ACADEMY?</b>\n\n"
+    "ከተለያዩ ቦታዎች Videos፣ Notes እና Questions መፈለግ አያስፈልግም!\n\n"
+    "<b>VIDEO LESSONS + CHAPTER NOTES + PRACTICE QUESTIONS + PAST EXAMS + COMPETITIONS</b>\n\n"
+    "ሁሉም በአንድ Mobile App!\n\n"
+    "━━━━━━━━━━━━━━━━━━\n\n"
+    "🤖 <b>STEP 1: JOIN OUR TELEGRAM CHANNEL</b>\n\n"
+    "👇 ከታች ያለውን ሊንክ በመጠቀም FreshMinds Academy Telegram Channel-ን ይቀላቀሉ።\n\n"
+    "{invite_link}\n\n"
+    "📲 <b>STEP 2: DOWNLOAD OUR MOBILE APP</b>\n\n"
+    "👇 FreshMinds Academy Mobile App-ን ያውርዱና የትምህርት ጉዞዎን ይጀምሩ!\n\n"
+    "{app_store_url}\n\n"
+    "━━━━━━━━━━━━━━━━━━\n\n"
+    "❤️ <b>ይህንን ዕድል ለጓደኞቻችሁም ያጋሩ!</b>\n\n"
+    "🎓 <b>FreshMinds Academy – Your Key to Freshman Success!</b>\n\n"
+    "ስኬታማ የFreshman የትምህርት ጉዞ በጥሩ ዝግጅት ይጀምራል!"
+)
+
+
+def format_promotional_post(invite_link: str, competition=None) -> str:
     """
     Complete, attractive promotional post that students can directly
     forward to Telegram groups, batch channels, or friends.
+    Uses custom promo template if set in active competition, otherwise defaults
+    to the rich FreshMinds Academy announcement copy.
     """
-    return (
-        "🎓 <b>ለ 2019 ዓ.ም የዩኒቨርሲቲ Freshman ተማሪዎች በሙሉ!</b> 🇪🇹\n\n"
-        "ለ 1ኛ አመት (Freshman) የዩኒቨርሲቲ ህይወትህ/ሽ በሚገባ ተዘጋጅተሃል/ሻል? "
-        "<b>FreshMinds Academy</b> ለተማሪዎች የተዘጋጀ ልዩ የትምህርት ማዕከል ነው!\n\n"
-        "📌 <b>በቻናላችን ምን ያገኛሉ?</b>\n"
-        "📚 <b>ነፃ የ Freshman የቪዲዮ ኮርሶች</b> (Applied Maths, General Physics, Chemistry, Economics...)\n"
-        "📝 <b>የዩኒቨርሲቲ ፈተና ሞዴሎች</b> እና የማጠቃለያ ኖቶች (Summary Handouts)\n"
-        "🏛️ <b>የዩኒቨርሲቲ ምደባ</b> እና የዲፓርትመንት መረጣ መረጃዎች\n"
-        "📱 <b>FreshMinds Mobile App</b> (በቅርቡ የሚለቀቅ)\n\n"
-        "👇 <b>አሁኑኑ ቻናሉን ይቀላቀሉ:</b>\n"
-        f"{invite_link}"
+    custom_template = (
+        getattr(competition, "promo_post_template", None)
+        if competition
+        else None
+    )
+    if custom_template and custom_template.strip():
+        text = custom_template.strip()
+        if "{invite_link}" in text:
+            text = text.replace("{invite_link}", invite_link)
+        elif invite_link not in text:
+            text += f"\n\n👇 <b>አሁኑኑ ቻናሉን ይቀላቀሉ:</b>\n{invite_link}"
+
+        if "{app_store_url}" in text:
+            text = text.replace("{app_store_url}", APP_STORE_URL)
+        return text
+
+    return DEFAULT_PROMOTIONAL_POST_TEMPLATE.format(
+        invite_link=invite_link,
+        app_store_url=APP_STORE_URL,
     )
 
 
@@ -399,8 +449,9 @@ def format_university_courses_card(
         f"{streams_text}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🔥 <b>FreshMinds Academy — የ 1st Year ስኬት አጋርዎ!</b>\n\n"
-        f"📱 <b>በቅርብ ቀን የሚለቀቀው የ FreshMinds Mobile App:</b>\n"
-        f"• የ 1ኛ ዓመት ኮርሶች የቪዲዮ ማብራሪያዎች፣ ሞጁሎች እና ያለፉ የፈተና ጥያቄዎች በሙሉ <b>Offline (ያለ ኢንተርኔት)</b> የሚሰሩበት አፕሊኬሽን በቅርብ ቀን ይለቀቃል!\n\n"
+        f"📱 <b>FreshMinds Mobile App አሁን በ Google Play ይገኛል:</b>\n"
+        f"• የ 1ኛ ዓመት ኮርሶች የቪዲዮ ማብራሪያዎች፣ ሞጁሎች እና ያለፉ የፈተና ጥያቄዎች በሙሉ <b>Offline (ያለ ኢንተርኔት)</b> የሚሰሩበት ይፋዊው አፕሊኬሽን በ Google Play Store ተለቋል!\n"
+        f"📲 <a href=\"{APP_STORE_URL}\"><b>አፑን ከ Google Play Store ያውርዱ (Download Now)</b></a>\n\n"
         f"📢 <b>ማቴሪያሎችን፣ ኖቶችን እና የቪዲዮ ትምህርቶችን ለማግኘት ይፋዊ ቻናላችንን ይቀላቀሉ:</b>"
     )
 

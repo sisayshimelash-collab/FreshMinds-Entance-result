@@ -15,7 +15,7 @@ from aiogram.types import (
 )
 from aiogram.enums import ParseMode
 from database import db
-from config import TARGET_CHANNEL
+from config import TARGET_CHANNEL, APP_STORE_URL
 from university_courses_data import (
     get_all_university_names,
     find_university_courses,
@@ -282,6 +282,7 @@ async def handle_unicourse_by_idx(callback: CallbackQuery, bot: Bot):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text="📱 FreshMinds App አውርድ (Google Play)", url=APP_STORE_URL)],
             [InlineKeyboardButton(text=f"📢 @{TARGET_CHANNEL} ቻናል ተቀላቀል", url=f"https://t.me/{TARGET_CHANNEL}")],
             [InlineKeyboardButton(text="📚 የ 1st Year ኮርሶችና ሞጁሎች (Materials)", callback_data="courses_list_back")],
             [InlineKeyboardButton(text="🔄 ሌላ ዩኒቨርሲቲ ለመምረጥ (Select Another Uni)", callback_data="courses_guide_menu")],

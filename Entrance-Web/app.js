@@ -43,7 +43,7 @@ const translations = {
     pass_desc: 'ውጤትዎ 50% እና ከዚያ በላይ ነው! ለዩኒቨርሲቲ ምደባ ብቁ ነዎት።',
     feat_courses: 'ነፃ የቪዲዮ ኮርሶች',
     feat_exams: 'የፈተና ሞዴሎች',
-    feat_app: 'FreshMinds App (በቅርቡ)',
+    feat_app: 'FreshMinds App (አሁን በ Google Play)',
   },
   en: {
     lang_btn: '🇪🇹 አማርኛ',
@@ -79,7 +79,7 @@ const translations = {
     pass_desc: 'You scored 50% or above and qualify for University Placement.',
     feat_courses: 'Free Video Lectures',
     feat_exams: 'Exam Model Banks',
-    feat_app: 'FreshMinds Mobile App (Coming Soon)',
+    feat_app: 'FreshMinds Mobile App (Live on Google Play)',
   }
 };
 
@@ -508,11 +508,11 @@ function generateStoryCard(student, results, avgVal, totalVal) {
   ctx.fillText('Join free courses on Telegram: @freshminds_academy', 540, 1575);
 
   ctx.fillStyle = 'rgba(34, 158, 217, 0.2)';
-  roundRect(ctx, 300, 1610, 480, 50, 25);
+  roundRect(ctx, 260, 1610, 560, 50, 25);
   ctx.fill();
   ctx.font = 'bold 22px Inter, sans-serif';
   ctx.fillStyle = '#38bdf8';
-  ctx.fillText('📱 FreshMinds Mobile App Coming Soon', 540, 1642);
+  ctx.fillText('📱 FreshMinds App: Live on Google Play', 540, 1642);
 
   // 10. Trigger Instant Download
   const link = document.createElement('a');

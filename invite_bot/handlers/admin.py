@@ -62,6 +62,8 @@ class AdminCompState(StatesGroup):
     waiting_for_title = State()
     waiting_for_prizes = State()
     waiting_for_end_date = State()
+    waiting_for_promo_post = State()
+    waiting_for_edit_promo = State()
 
 
 class AdminCampusCallState(StatesGroup):
@@ -1965,26 +1967,44 @@ async def cb_admin_comp_menu(callback: CallbackQuery, state: FSMContext = None):
 
     if active_comp:
         status_header = "🟢 <b>Active Competition Running</b>"
+        has_custom_promo = bool(
+            active_comp.promo_post_template and active_comp.promo_post_template.strip()
+        )
+        promo_type_str = (
+            "✏️ Custom Post Configured"
+            if has_custom_promo
+            else "✨ Default Rich Marketing Copy"
+        )
         details = (
             f"🏆 <b>Title:</b> {html.escape(active_comp.title)}\n"
-            f"⏰ <b>Ends:</b> {html.escape(active_comp.end_date_str)}\n\n"
+            f"⏰ <b>Ends:</b> {html.escape(active_comp.end_date_str)}\n"
+            f"📢 <b>Forward Post:</b> {promo_type_str}\n\n"
             f"🎁 <b>Prizes:</b>\n{html.escape(active_comp.prizes_text)}\n\n"
             "<i>(All 8 menu buttons are currently displayed to users)</i>"
         )
         keyboard = [
             [
                 InlineKeyboardButton(
-                    text="⏹️ End Active Competition", callback_data="admin_comp_end_confirm"
+                    text="📢 View / Edit Forward Post",
+                    callback_data="admin_comp_promo_view",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="➕ Create / Replace Competition", callback_data="admin_comp_create"
+                    text="⏹️ End Active Competition",
+                    callback_data="admin_comp_end_confirm",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="📜 Competition History", callback_data="admin_comp_history"
+                    text="➕ Create / Replace Competition",
+                    callback_data="admin_comp_create",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📜 Competition History",
+                    callback_data="admin_comp_history",
                 )
             ],
             [
@@ -2040,7 +2060,7 @@ async def cb_admin_comp_create(callback: CallbackQuery, state: FSMContext):
         inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel", callback_data="admin_comp_menu")]]
     )
     await callback.message.answer(
-        "🏆 <b>New Competition — Step 1/3</b>\n"
+        "🏆 <b>New Competition — Step 1/4</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "Please send the <b>Competition Title / Name</b>:\n\n"
         "<i>Example:</i> <code>የ 2019 ዓ.ም የ Freshman ዩኒቨርሲቲ ተማሪዎች የግብዣ ውድድር</code>\n\n"
@@ -2053,10 +2073,12 @@ async def cb_admin_comp_create(callback: CallbackQuery, state: FSMContext):
 @router.message(AdminCompState.waiting_for_title, Command("cancel"))
 @router.message(AdminCompState.waiting_for_prizes, Command("cancel"))
 @router.message(AdminCompState.waiting_for_end_date, Command("cancel"))
+@router.message(AdminCompState.waiting_for_promo_post, Command("cancel"))
+@router.message(AdminCompState.waiting_for_edit_promo, Command("cancel"))
 async def cmd_cancel_comp(message: Message, state: FSMContext):
     """Cancel competition creation."""
     await state.clear()
-    await message.answer("❌ Competition creation cancelled.")
+    await message.answer("❌ Competition action cancelled.")
 
 
 @router.message(AdminCompState.waiting_for_title)
@@ -2076,7 +2098,7 @@ async def msg_comp_title(message: Message, state: FSMContext):
         inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel", callback_data="admin_comp_menu")]]
     )
     await message.answer(
-        "🎁 <b>New Competition — Step 2/3</b>\n"
+        "🎁 <b>New Competition — Step 2/4</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         f"Title: <b>{html.escape(title)}</b>\n\n"
         "Now send the <b>Prizes Description</b> (you can format it with emojis/lines):\n\n"
@@ -2108,7 +2130,7 @@ async def msg_comp_prizes(message: Message, state: FSMContext):
         inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel", callback_data="admin_comp_menu")]]
     )
     await message.answer(
-        "⏰ <b>New Competition — Step 3/3</b>\n"
+        "⏰ <b>New Competition — Step 3/4</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "Now send the <b>End Date & Time</b> description:\n\n"
         "<i>Examples:</i>\n"
@@ -2122,7 +2144,7 @@ async def msg_comp_prizes(message: Message, state: FSMContext):
 
 @router.message(AdminCompState.waiting_for_end_date)
 async def msg_comp_end_date(message: Message, state: FSMContext):
-    """Final Step: Save competition and activate it."""
+    """Step 4: Save end date and offer choice between Default Rich Post and Custom Promo Post."""
     if not is_admin(message.from_user.id):
         return
     end_date_str = message.text.strip()
@@ -2130,14 +2152,133 @@ async def msg_comp_end_date(message: Message, state: FSMContext):
         await message.answer("⚠️ Please provide a valid end date string.")
         return
 
+    await state.update_data(end_date_str=end_date_str)
+    await state.set_state(AdminCompState.waiting_for_promo_post)
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✨ Use Default Rich Promo Post",
+                    callback_data="admin_comp_promo_default",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="✏️ Write Custom Promo Post",
+                    callback_data="admin_comp_promo_custom",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❌ Cancel",
+                    callback_data="admin_comp_menu",
+                )
+            ],
+        ]
+    )
+
+    await message.answer(
+        "📢 <b>New Competition — Step 4/4: Promotional Forward Post</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Choose the promotional message students will receive to forward to groups & friends:\n\n"
+        "🌟 <b>Option 1 (Default & Recommended):</b>\n"
+        "Use the official FreshMinds rich marketing copy featuring Video Lessons, Chapter Notes, Exams, Competitions & the Mobile App offline mode.\n\n"
+        "✍️ <b>Option 2 (Custom):</b>\n"
+        "Write your own promotional text for this competition cycle. (You can include <code>{invite_link}</code> where each student's referral link will be inserted).\n\n"
+        "👇 <i>Choose an option below:</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.callback_query(F.data == "admin_comp_promo_default")
+async def cb_admin_comp_promo_default(callback: CallbackQuery, state: FSMContext):
+    """Finish competition creation with default promo post."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
     data = await state.get_data()
     title = data.get("title", "FreshMinds Competition")
     prizes_text = data.get("prizes_text", "")
+    end_date_str = data.get("end_date_str", "")
 
     comp_id = await db.create_competition(
         title=title,
         prizes_text=prizes_text,
         end_date_str=end_date_str,
+        promo_post_template=None,  # Defaults to rich template
+    )
+    await state.clear()
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Back to Competitions CMS", callback_data="admin_comp_menu")]
+        ]
+    )
+
+    await callback.message.answer(
+        "🎉 <b>Competition Successfully Created and Activated!</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"🆔 <b>Competition ID:</b> #{comp_id}\n"
+        f"🏆 <b>Title:</b> {html.escape(title)}\n"
+        f"⏰ <b>End Date:</b> {html.escape(end_date_str)}\n"
+        f"📢 <b>Forward Post:</b> ✨ FreshMinds Default Rich Marketing Copy\n\n"
+        f"🎁 <b>Prizes:</b>\n{html.escape(prizes_text)}\n\n"
+        "✨ <b>System Status:</b>\n"
+        "• Main menu keyboard now displays all 8 buttons for all users.\n"
+        "• Welcome screen includes the competition announcement.\n"
+        "• Referrals table cleared and ready for new points!",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.callback_query(F.data == "admin_comp_promo_custom")
+async def cb_admin_comp_promo_custom(callback: CallbackQuery, state: FSMContext):
+    """Ask admin to send custom promo post text."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    await state.set_state(AdminCompState.waiting_for_promo_post)
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel", callback_data="admin_comp_menu")]]
+    )
+
+    await callback.message.answer(
+        "✍️ <b>Send Custom Promotional Text</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Please send the message that users will get to forward.\n\n"
+        "💡 <b>Tips:</b>\n"
+        "• Use <code>{invite_link}</code> where you want the user's personal invite link to appear.\n"
+        "• Use <code>{app_store_url}</code> if you want the Google Play Store link.\n\n"
+        "<i>Send /cancel to abort.</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.message(AdminCompState.waiting_for_promo_post)
+async def msg_comp_custom_promo(message: Message, state: FSMContext):
+    """Save custom promo post and activate competition."""
+    if not is_admin(message.from_user.id):
+        return
+    promo_text = message.text.strip()
+    if not promo_text:
+        await message.answer("⚠️ Please provide a non-empty promo text.")
+        return
+
+    data = await state.get_data()
+    title = data.get("title", "FreshMinds Competition")
+    prizes_text = data.get("prizes_text", "")
+    end_date_str = data.get("end_date_str", "")
+
+    comp_id = await db.create_competition(
+        title=title,
+        prizes_text=prizes_text,
+        end_date_str=end_date_str,
+        promo_post_template=promo_text,
     )
     await state.clear()
 
@@ -2152,15 +2293,132 @@ async def msg_comp_end_date(message: Message, state: FSMContext):
         "━━━━━━━━━━━━━━━━━━━━\n"
         f"🆔 <b>Competition ID:</b> #{comp_id}\n"
         f"🏆 <b>Title:</b> {html.escape(title)}\n"
-        f"⏰ <b>End Date:</b> {html.escape(end_date_str)}\n\n"
+        f"⏰ <b>End Date:</b> {html.escape(end_date_str)}\n"
+        f"📢 <b>Forward Post:</b> ✏️ Custom Post Configured\n\n"
         f"🎁 <b>Prizes:</b>\n{html.escape(prizes_text)}\n\n"
         "✨ <b>System Status:</b>\n"
         "• Main menu keyboard now displays all 8 buttons for all users.\n"
-        "• Welcome screen includes the competition announcement.\n"
+        "• Custom forward promo post is now live!\n"
         "• Referrals table cleared and ready for new points!",
         parse_mode=ParseMode.HTML,
         reply_markup=keyboard,
     )
+
+
+@router.callback_query(F.data == "admin_comp_promo_view")
+async def cb_admin_comp_promo_view(callback: CallbackQuery, state: FSMContext = None):
+    """Preview the promotional post of the currently active competition and offer edit/reset options."""
+    if not is_admin(callback.from_user.id):
+        return
+    if state:
+        await state.clear()
+    await callback.answer()
+
+    active_comp = await db.get_active_competition()
+    if not active_comp:
+        await callback.message.answer("⚠️ No active competition found.")
+        return
+
+    sample_link = "https://t.me/FreshmanSuperBot?start=ref_12345678"
+    preview_text = msg.format_promotional_post(sample_link, competition=active_comp)
+
+    has_custom = bool(
+        active_comp.promo_post_template and active_comp.promo_post_template.strip()
+    )
+    status_label = (
+        "✏️ <b>Custom Template Active</b>"
+        if has_custom
+        else "✨ <b>Default Rich Template Active</b>"
+    )
+
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                text="✏️ Change / Write Custom Post",
+                callback_data="admin_comp_edit_promo_start",
+            )
+        ],
+    ]
+    if has_custom:
+        keyboard.append([
+            InlineKeyboardButton(
+                text="🔄 Reset to Default Template",
+                callback_data="admin_comp_reset_promo_default",
+            )
+        ])
+    keyboard.append([
+        InlineKeyboardButton(
+            text="🔙 Back to Competitions CMS", callback_data="admin_comp_menu"
+        )
+    ])
+
+    await callback.message.answer(
+        f"📢 <b>Promotional Post Preview</b> ({status_label}):\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"{preview_text}\n"
+        "━━━━━━━━━━━━━━━━━━━━",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+        disable_web_page_preview=True,
+    )
+
+
+@router.callback_query(F.data == "admin_comp_edit_promo_start")
+async def cb_admin_comp_edit_promo_start(callback: CallbackQuery, state: FSMContext):
+    """Prompt admin to enter new promo post for active competition."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    await state.set_state(AdminCompState.waiting_for_edit_promo)
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="❌ Cancel", callback_data="admin_comp_promo_view")]]
+    )
+    await callback.message.answer(
+        "✍️ <b>Update Promotional Post for Active Competition</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Send the new text that students will forward.\n\n"
+        "💡 <i>Tip: Include <code>{invite_link}</code> where the student's unique link should appear.</i>\n\n"
+        "<i>Send /cancel to abort.</i>",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.message(AdminCompState.waiting_for_edit_promo)
+async def msg_comp_edit_promo_save(message: Message, state: FSMContext):
+    """Save updated promo post for active competition."""
+    if not is_admin(message.from_user.id):
+        return
+    promo_text = message.text.strip()
+    if not promo_text:
+        await message.answer("⚠️ Please provide a non-empty text.")
+        return
+
+    await db.update_active_competition_promo(promo_text)
+    await state.clear()
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Back to Preview", callback_data="admin_comp_promo_view")]
+        ]
+    )
+    await message.answer(
+        "✅ <b>Promotional Post Successfully Updated!</b>\n"
+        "All students requesting their invite links will now receive this updated text.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=keyboard,
+    )
+
+
+@router.callback_query(F.data == "admin_comp_reset_promo_default")
+async def cb_admin_comp_reset_promo_default(callback: CallbackQuery):
+    """Reset active competition promo post to default."""
+    if not is_admin(callback.from_user.id):
+        return
+    await callback.answer("🔄 Resetting to default template...")
+    await db.update_active_competition_promo(None)
+    await cb_admin_comp_promo_view(callback)
 
 
 @router.callback_query(F.data == "admin_comp_end_confirm")

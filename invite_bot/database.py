@@ -65,6 +65,7 @@ class CompetitionRecord(NamedTuple):
     end_date_str: str
     is_active: int
     created_at: str
+    promo_post_template: Optional[str] = None
 
 
 class PlacementCacheRecord(NamedTuple):
@@ -281,10 +282,17 @@ class Database:
                     title TEXT NOT NULL,
                     prizes_text TEXT NOT NULL,
                     end_date_str TEXT NOT NULL,
+                    promo_post_template TEXT,
                     is_active INTEGER DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
+
+            # Ensure promo_post_template column exists if table was created previously
+            try:
+                await db.execute("ALTER TABLE competitions ADD COLUMN promo_post_template TEXT;")
+            except Exception:
+                pass
 
             # Seed default competition if empty
             cursor = await db.execute("SELECT COUNT(*) FROM competitions")
@@ -911,7 +919,7 @@ class Database:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
                 """
-                SELECT id, title, prizes_text, end_date_str, is_active, created_at
+                SELECT id, title, prizes_text, end_date_str, is_active, created_at, promo_post_template
                 FROM competitions
                 WHERE is_active = 1
                 ORDER BY id DESC
@@ -927,11 +935,16 @@ class Database:
                     end_date_str=row["end_date_str"],
                     is_active=row["is_active"],
                     created_at=row["created_at"],
+                    promo_post_template=row["promo_post_template"] if "promo_post_template" in row.keys() else None,
                 )
             return None
 
     async def create_competition(
-        self, title: str, prizes_text: str, end_date_str: str
+        self,
+        title: str,
+        prizes_text: str,
+        end_date_str: str,
+        promo_post_template: Optional[str] = None,
     ) -> int:
         """Create a new active competition, deactivating any existing active ones and clearing active referrals."""
         async with aiosqlite.connect(self.db_path) as db:
@@ -940,15 +953,37 @@ class Database:
             # Clear old referrals to start fresh
             await db.execute("DELETE FROM referrals")
             # Insert new competition
+            clean_promo = (
+                promo_post_template.strip()
+                if promo_post_template and promo_post_template.strip()
+                else None
+            )
             cursor = await db.execute(
                 """
-                INSERT INTO competitions (title, prizes_text, end_date_str, is_active)
-                VALUES (?, ?, ?, 1)
+                INSERT INTO competitions (title, prizes_text, end_date_str, promo_post_template, is_active)
+                VALUES (?, ?, ?, ?, 1)
                 """,
-                (title.strip(), prizes_text.strip(), end_date_str.strip()),
+                (title.strip(), prizes_text.strip(), end_date_str.strip(), clean_promo),
             )
             await db.commit()
             return cursor.lastrowid
+
+    async def update_active_competition_promo(
+        self, promo_post_template: Optional[str]
+    ) -> bool:
+        """Update promotional post template of the currently active competition."""
+        async with aiosqlite.connect(self.db_path) as db:
+            clean_promo = (
+                promo_post_template.strip()
+                if promo_post_template and promo_post_template.strip()
+                else None
+            )
+            cursor = await db.execute(
+                "UPDATE competitions SET promo_post_template = ? WHERE is_active = 1",
+                (clean_promo,),
+            )
+            await db.commit()
+            return cursor.rowcount > 0
 
     async def end_active_competition(
         self, cycle_name: Optional[str] = None
@@ -991,7 +1026,7 @@ class Database:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
                 """
-                SELECT id, title, prizes_text, end_date_str, is_active, created_at
+                SELECT id, title, prizes_text, end_date_str, is_active, created_at, promo_post_template
                 FROM competitions
                 ORDER BY id DESC
                 """
@@ -1005,6 +1040,7 @@ class Database:
                     end_date_str=r["end_date_str"],
                     is_active=r["is_active"],
                     created_at=r["created_at"],
+                    promo_post_template=r["promo_post_template"] if "promo_post_template" in r.keys() else None,
                 )
                 for r in rows
             ]

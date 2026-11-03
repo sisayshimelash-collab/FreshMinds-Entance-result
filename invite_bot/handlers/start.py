@@ -16,7 +16,7 @@ from aiogram.types import (
 )
 from aiogram.enums import ParseMode
 from database import db
-from config import TARGET_CHANNEL
+from config import TARGET_CHANNEL, APP_STORE_URL
 from handlers.utils import check_channel_membership
 import messages as msg
 
@@ -96,6 +96,12 @@ async def get_active_main_menu_keyboard(has_active_comp: bool = False) -> ReplyK
 def get_welcome_join_inline_markup(referrer_id: Optional[int] = None) -> InlineKeyboardMarkup:
     """Inline button attached to the welcome message to directly open the channel, plus verify button if referred."""
     keyboard = [
+        [
+            InlineKeyboardButton(
+                text="📱 FreshMinds App አውርድ (Google Play)",
+                url=APP_STORE_URL,
+            )
+        ],
         [
             InlineKeyboardButton(
                 text=f"📢 @{TARGET_CHANNEL} ቻናል ተቀላቀል (Join Channel)",
@@ -260,6 +266,12 @@ async def handle_verify_callback(callback: CallbackQuery, bot: Bot):
         await callback.message.edit_reply_markup(
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="📱 FreshMinds App አውርድ (Google Play)",
+                            url=APP_STORE_URL,
+                        )
+                    ],
                     [
                         InlineKeyboardButton(
                             text=f"📢 @{TARGET_CHANNEL} ቻናል (Official)",
